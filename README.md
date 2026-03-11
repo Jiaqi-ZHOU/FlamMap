@@ -49,8 +49,8 @@ uv sync
 uv run python run.py configs/example.yaml
 ```
 
-`molsym` is installed from the GitHub repository at `https://github.com/ohueter/molsym`.
-Python `3.11` is recommended because newer Python versions can expose dependency compatibility issues in the scientific stack.
+`pymsym` is installed as part of `uv sync` and is used to determine the rotational symmetry number directly from the ORCA geometry.
+Python `3.11` is recommended for compatibility with the scientific Python stack used here.
 
 ## Quick Start
 
@@ -97,4 +97,4 @@ The workflow uses fixed values:
 
 - Default: omit `freqs_cm1` and the code will parse vibrational frequencies from `orca.out`.
 - Override: set `inputs.freqs_cm1` to a YAML list of positive frequencies in `cm^-1`.
-- Current constraint: `orca.out` is still required for molecular geometry, symmetry number, and formula inference.
+- Current constraint: `orca.out` is still required for molecular geometry, symmetry number detection, and formula inference.

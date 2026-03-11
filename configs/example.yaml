@@ -4,7 +4,6 @@ inputs:
   # Optional override for vibrational frequencies in cm^-1.
   # freqs_cm1: [1340.40, 1340.57, 1340.65, 1557.35, 1557.45, 3029.19, 3131.50, 3131.75, 3131.78]
   bond_enthalpy_json: data/reference/elem_enthalpies.json
-  symmetry_number_json: data/reference/symmetry_number.json
   ref_yaml: data/cantera/gri30.yaml
   prod_yaml: data/cantera/gri30_noKinetics.yaml
 

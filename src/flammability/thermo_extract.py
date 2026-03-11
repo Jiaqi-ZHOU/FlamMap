@@ -1,21 +1,12 @@
 from __future__ import annotations
 
-import collections
-import collections.abc
-import json
-import os
 import re
-import tempfile
 from collections import defaultdict
 
-# Compatibility shim for legacy molsym imports on modern Python.
-if not hasattr(collections, "Iterable"):
-    collections.Iterable = collections.abc.Iterable
-
-import molsym
 import numpy as np
+import pymsym
+from ase.data import atomic_numbers
 from ase.units import Bohr
-from molsym.molecule import Molecule
 
 
 def extract_atoms(orca_outfile):
@@ -77,15 +68,6 @@ def compute_inertia_matrix(atoms, com):
     return inertia_matrix
 
 
-def write_temp_xyz(atoms):
-    with tempfile.NamedTemporaryFile("w", suffix=".xyz", delete=False) as tmp:
-        tmp.write(f"{len(atoms)}\n\n")
-        for atom in atoms:
-            x, y, z = atom["xyz"]
-            tmp.write(f"{atom['symbol']} {x:.8f} {y:.8f} {z:.8f}\n")
-        return tmp.name
-
-
 def get_inertia_and_linearity(inertia_matrix):
     inertia_values = np.sort(np.linalg.eigvalsh(inertia_matrix))
     is_linear = np.isclose(inertia_values[0], 0, atol=1e-6)
@@ -93,23 +75,18 @@ def get_inertia_and_linearity(inertia_matrix):
     return inertia, is_linear
 
 
-def get_sigma(xyz_file, symmetry_number_json):
-    mol = Molecule.from_file(xyz_file)
-    mol.tol = 1e-2
-    pg, _axes = molsym.find_point_group(mol)
-    with open(symmetry_number_json, "r", encoding="utf-8") as handle:
-        symmetry_numbers = json.load(handle)
-    return symmetry_numbers.get(pg, 1)
+def get_sigma(atoms):
+    atom_numbers = [atomic_numbers[atom["symbol"]] for atom in atoms]
+    positions = [atom["xyz"].tolist() for atom in atoms]
+    return int(pymsym.get_symmetry_number(atom_numbers, positions))
 
 
-def parse_mol_struct(orca_outfile, symmetry_number_json):
+def parse_mol_struct(orca_outfile):
     atoms = extract_atoms(orca_outfile)
     com, total_mass = compute_center_of_mass(atoms)
     inertia_matrix = compute_inertia_matrix(atoms, com)
     inertia, is_linear = get_inertia_and_linearity(inertia_matrix)
-    tmp_path = write_temp_xyz(atoms)
-    sigma = get_sigma(tmp_path, symmetry_number_json)
-    os.remove(tmp_path)
+    sigma = get_sigma(atoms)
     return is_linear, total_mass, sigma, inertia
 
 

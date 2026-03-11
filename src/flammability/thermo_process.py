@@ -30,7 +30,6 @@ def calc_entropy_trans_rot(molecular_weight, sigma, inertia, temperature, pressu
 
     if np.isscalar(inertia) or np.allclose(inertia[0], 0, atol=1e-6):
         inertia_value = inertia * amu2kg * angstrom2m**2
-        sigma = 1
         q_rot = 8 * np.pi**2 * inertia_value * kB * temperature / (sigma * h**2)
         s_rot = R * (np.log(q_rot) + 1)
     else:
@@ -76,8 +75,8 @@ def _resolve_freqs_cm1(orca_outfile, freqs_cm1):
     return parsed_freqs_cm, zpe_kcal, total_mass, e0
 
 
-def get_dft_quantities(orca_outfile, tae_hartree, symmetry_number_json, freqs_cm1=None):
-    is_linear, molecular_weight, sigma, inertia = parse_mol_struct(orca_outfile, symmetry_number_json)
+def get_dft_quantities(orca_outfile, tae_hartree, freqs_cm1=None):
+    is_linear, molecular_weight, sigma, inertia = parse_mol_struct(orca_outfile)
     freqs_cm, zpe_kcal, total_mass, _e0 = _resolve_freqs_cm1(orca_outfile, freqs_cm1)
     if total_mass is not None:
         assert abs(total_mass - molecular_weight) < 1e-2, "Total mass mismatch in ORCA output."
@@ -90,13 +89,12 @@ def get_dft_therms(
     *,
     formula,
     tae_hartree,
-    symmetry_number_json,
     bond_enthalpy_json,
     c_bond,
     freqs_cm1=None,
 ):
     freqs_cm, zpe_kcal, tae, is_linear, molecular_weight, sigma, inertia = get_dft_quantities(
-        orca_outfile, tae_hartree, symmetry_number_json, freqs_cm1=freqs_cm1
+        orca_outfile, tae_hartree, freqs_cm1=freqs_cm1
     )
     zpe_kj = 0.0 if zpe_kcal is None else zpe_kcal * cal2J
     cp_vib, h_vib, s_vib = calc_vibrational_thermo(freqs_cm, temperature)
@@ -138,7 +136,6 @@ def get_dft_therms_temps(
     *,
     formula,
     tae_hartree,
-    symmetry_number_json,
     bond_enthalpy_json,
     c_bond,
     freqs_cm1=None,
@@ -152,7 +149,6 @@ def get_dft_therms_temps(
             temperature,
             formula=formula,
             tae_hartree=tae_hartree,
-            symmetry_number_json=symmetry_number_json,
             bond_enthalpy_json=bond_enthalpy_json,
             c_bond=c_bond,
             freqs_cm1=freqs_cm1,

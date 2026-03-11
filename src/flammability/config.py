@@ -13,7 +13,6 @@ class ProjectConfig:
     orca_out: Path
     freqs_cm1: list[float] | None
     bond_enthalpy_json: Path
-    symmetry_number_json: Path
     ref_yaml: Path
     prod_yaml: Path
     output_dir: Path
@@ -47,7 +46,6 @@ def load_config(config_path: str | Path) -> ProjectConfig:
         orca_out=_pathify_from_repo(inputs["orca_out"], repo_root),
         freqs_cm1=None if inputs.get("freqs_cm1") is None else [float(x) for x in inputs["freqs_cm1"]],
         bond_enthalpy_json=_pathify_from_repo(inputs["bond_enthalpy_json"], repo_root),
-        symmetry_number_json=_pathify_from_repo(inputs["symmetry_number_json"], repo_root),
         ref_yaml=_pathify_from_repo(inputs["ref_yaml"], repo_root),
         prod_yaml=_pathify_from_repo(inputs["prod_yaml"], repo_root),
         output_dir=_pathify_from_repo(outputs["output_dir"], repo_root),
@@ -61,7 +59,6 @@ def validate_config(cfg: ProjectConfig) -> list[str]:
     for path in [
         cfg.orca_out,
         cfg.bond_enthalpy_json,
-        cfg.symmetry_number_json,
         cfg.ref_yaml,
         cfg.prod_yaml,
     ]:
