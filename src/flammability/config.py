@@ -10,7 +10,8 @@ import yaml
 @dataclass(slots=True)
 class ProjectConfig:
     tae_hartree: float
-    orca_out: Path
+    orca_out: Path | None
+    xyz_geom: Path | None
     freqs_cm1: list[float] | None
     bond_enthalpy_json: Path
     ref_yaml: Path
@@ -43,7 +44,8 @@ def load_config(config_path: str | Path) -> ProjectConfig:
 
     return ProjectConfig(
         tae_hartree=float(inputs["tae_hartree"]),
-        orca_out=_pathify_from_repo(inputs["orca_out"], repo_root),
+        orca_out=None if inputs.get("orca_out") is None else _pathify_from_repo(inputs["orca_out"], repo_root),
+        xyz_geom=None if inputs.get("xyz_geom") is None else _pathify_from_repo(inputs["xyz_geom"], repo_root),
         freqs_cm1=None if inputs.get("freqs_cm1") is None else [float(x) for x in inputs["freqs_cm1"]],
         bond_enthalpy_json=_pathify_from_repo(inputs["bond_enthalpy_json"], repo_root),
         ref_yaml=_pathify_from_repo(inputs["ref_yaml"], repo_root),
@@ -56,14 +58,13 @@ def load_config(config_path: str | Path) -> ProjectConfig:
 
 def validate_config(cfg: ProjectConfig) -> list[str]:
     errors: list[str] = []
-    for path in [
-        cfg.orca_out,
-        cfg.bond_enthalpy_json,
-        cfg.ref_yaml,
-        cfg.prod_yaml,
-    ]:
+    for path in [cfg.bond_enthalpy_json, cfg.ref_yaml, cfg.prod_yaml]:
         if not path.exists():
             errors.append(f"Missing required path: {path}")
+    if cfg.orca_out is not None and not cfg.orca_out.exists():
+        errors.append(f"Missing required path: {cfg.orca_out}")
+    if cfg.xyz_geom is not None and not cfg.xyz_geom.exists():
+        errors.append(f"Missing required path: {cfg.xyz_geom}")
 
     if len(cfg.polys_temps) != 3:
         errors.append("parameters.polys_temps must have exactly 3 entries.")
@@ -76,5 +77,11 @@ def validate_config(cfg: ProjectConfig) -> list[str]:
             errors.append("inputs.freqs_cm1 must not be empty when provided.")
         elif any(freq <= 0 for freq in cfg.freqs_cm1):
             errors.append("inputs.freqs_cm1 must contain only positive frequencies in cm^-1.")
+    if cfg.orca_out is None and cfg.xyz_geom is None:
+        errors.append("Provide at least one geometry source: inputs.orca_out or inputs.xyz_geom.")
+    if cfg.orca_out is None and cfg.freqs_cm1 is None:
+        errors.append("inputs.orca_out is required when inputs.freqs_cm1 is not provided.")
+    if cfg.orca_out is None and cfg.freqs_cm1 is not None and cfg.xyz_geom is None:
+        errors.append("inputs.xyz_geom is required when using inputs.freqs_cm1 without inputs.orca_out.")
 
     return errors

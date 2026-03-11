@@ -1,7 +1,8 @@
 inputs:
   tae_hartree: 0.669583
-  orca_out: examples/orca/orca.out
-  # Optional override for vibrational frequencies in cm^-1.
+  orca_out: examples/orca.out
+  # Optional: vibrational frequencies in cm^-1 and geometry source when orca_out is not provided.
+  # xyz_geom: examples/molecule.xyz
   # freqs_cm1: [1340.40, 1340.57, 1340.65, 1557.35, 1557.45, 3029.19, 3131.50, 3131.75, 3131.78]
   bond_enthalpy_json: data/reference/elem_enthalpies.json
   ref_yaml: data/cantera/gri30.yaml

@@ -16,10 +16,11 @@ def fit_temp_range(
     *,
     formula,
     tae_hartree,
-    orca_outfile,
+    geometry_file,
     polys_temps,
     bond_enthalpy_json,
     c_bond,
+    orca_outfile=None,
     freqs_cm1=None,
 ):
     temps_low = np.arange(polys_temps[0], polys_temps[1] + 1, 100)
@@ -27,12 +28,13 @@ def fit_temp_range(
 
     def get_fit_coeffs(temps):
         cp_kj, hf_kj, s_kj = get_dft_therms_temps(
-            orca_outfile,
+            geometry_file,
             temps,
             formula=formula,
             tae_hartree=tae_hartree,
             bond_enthalpy_json=bond_enthalpy_json,
             c_bond=c_bond,
+            orca_outfile=orca_outfile,
             freqs_cm1=freqs_cm1,
         )
         cp = cp_kj * 1000
@@ -48,13 +50,14 @@ def gen_custom_yaml(
     *,
     formula,
     tae_hartree,
-    orca_out,
+    geometry_file,
     ref_yaml,
     prod_yaml,
     output_dir,
     polys_temps,
     bond_enthalpy_json,
     c_bond,
+    orca_out=None,
     freqs_cm1=None,
 ):
     formula = canonical_species_name(formula)
@@ -62,10 +65,11 @@ def gen_custom_yaml(
     fits = fit_temp_range(
         formula=formula,
         tae_hartree=tae_hartree,
-        orca_outfile=orca_out,
+        geometry_file=geometry_file,
         polys_temps=polys_temps,
         bond_enthalpy_json=bond_enthalpy_json,
         c_bond=c_bond,
+        orca_outfile=orca_out,
         freqs_cm1=freqs_cm1,
     )
 

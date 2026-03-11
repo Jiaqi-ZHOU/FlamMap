@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from pathlib import Path
 
 import numpy as np
 import pymsym
 from ase.data import atomic_numbers
+from ase.data import atomic_masses
 from ase.units import Bohr
 
 
-def extract_atoms(orca_outfile):
+def extract_atoms_from_orca(orca_outfile):
     with open(orca_outfile, "r", encoding="utf-8") as handle:
         lines = handle.readlines()
 
@@ -43,6 +45,49 @@ def extract_atoms(orca_outfile):
     if not atoms:
         raise ValueError("No atoms found in the file.")
     return atoms
+
+
+def extract_atoms_from_xyz(xyz_file):
+    with open(xyz_file, "r", encoding="utf-8") as handle:
+        lines = [line.rstrip() for line in handle]
+
+    if len(lines) < 3:
+        raise ValueError("XYZ file is too short.")
+
+    try:
+        natoms = int(lines[0].strip())
+    except ValueError as exc:
+        raise ValueError("First line of XYZ file must be the atom count.") from exc
+
+    atom_lines = lines[2 : 2 + natoms]
+    if len(atom_lines) != natoms:
+        raise ValueError("XYZ file does not contain the declared number of atoms.")
+
+    atoms = []
+    for line in atom_lines:
+        parts = line.split()
+        if len(parts) < 4:
+            raise ValueError(f"Malformed XYZ atom line: {line}")
+        symbol = parts[0]
+        x, y, z = map(float, parts[1:4])
+        atoms.append(
+            {
+                "symbol": symbol,
+                "mass": float(atomic_masses[atomic_numbers[symbol]]),
+                "xyz": np.array([x, y, z], dtype=float),
+            }
+        )
+
+    if not atoms:
+        raise ValueError("No atoms found in the XYZ file.")
+    return atoms
+
+
+def extract_atoms(geometry_file):
+    suffix = Path(geometry_file).suffix.lower()
+    if suffix == ".xyz":
+        return extract_atoms_from_xyz(geometry_file)
+    return extract_atoms_from_orca(geometry_file)
 
 
 def compute_center_of_mass(atoms):
@@ -81,13 +126,13 @@ def get_sigma(atoms):
     return int(pymsym.get_symmetry_number(atom_numbers, positions))
 
 
-def parse_mol_struct(orca_outfile):
-    atoms = extract_atoms(orca_outfile)
+def parse_mol_struct(geometry_file):
+    atoms = extract_atoms(geometry_file)
     com, total_mass = compute_center_of_mass(atoms)
     inertia_matrix = compute_inertia_matrix(atoms, com)
     inertia, is_linear = get_inertia_and_linearity(inertia_matrix)
     sigma = get_sigma(atoms)
-    return is_linear, total_mass, sigma, inertia
+    return is_linear, total_mass, sigma, inertia, len(atoms)
 
 
 def parse_orca_output(orca_outfile):

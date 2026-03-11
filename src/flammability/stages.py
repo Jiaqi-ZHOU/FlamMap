@@ -26,41 +26,54 @@ def _output_paths(cfg: ProjectConfig, case_name: str) -> dict[str, Path]:
     }
 
 
+def _geometry_source(cfg: ProjectConfig) -> Path:
+    if cfg.orca_out is not None:
+        return cfg.orca_out
+    if cfg.xyz_geom is not None:
+        return cfg.xyz_geom
+    raise ValueError("No geometry source configured.")
+
+
 def _compute_hf(cfg: ProjectConfig, formula: str) -> float:
+    geometry_file = _geometry_source(cfg)
     _cp, hf_kj, _s = get_dft_therms(
-        cfg.orca_out,
+        geometry_file,
         298.15,
         formula=formula,
         tae_hartree=cfg.tae_hartree,
         bond_enthalpy_json=cfg.bond_enthalpy_json,
         c_bond=C_BOND,
+        orca_outfile=cfg.orca_out,
         freqs_cm1=cfg.freqs_cm1,
     )
     return float(hf_kj)
 
 
 def run_pipeline(cfg: ProjectConfig) -> None:
-    formula = formula_from_atoms(extract_atoms(cfg.orca_out))
+    geometry_file = _geometry_source(cfg)
+    formula = formula_from_atoms(extract_atoms(geometry_file))
     case_name = infer_case_name(formula)
     species_name = case_name
     paths = _output_paths(cfg, case_name)
     freq_source = "inputs.freqs_cm1" if cfg.freqs_cm1 is not None else str(cfg.orca_out)
     print(f"Running flammability pipeline for {case_name}")
+    print(f"Using geometry source: {geometry_file}")
     print(f"Using TAE = {cfg.tae_hartree:.6f} Ha and frequency source: {freq_source}")
-    print(f"Inferred molecular formula from ORCA structure: {formula}")
+    print(f"Inferred molecular formula from geometry: {formula}")
 
     print("1. Fitting thermochemistry and generating a Cantera YAML mechanism...")
     yaml_file = gen_custom_yaml(
         species_name,
         formula=formula,
         tae_hartree=cfg.tae_hartree,
-        orca_out=cfg.orca_out,
+        geometry_file=geometry_file,
         ref_yaml=cfg.ref_yaml,
         prod_yaml=cfg.prod_yaml,
         output_dir=cfg.output_dir,
         polys_temps=cfg.polys_temps,
         bond_enthalpy_json=cfg.bond_enthalpy_json,
         c_bond=C_BOND,
+        orca_out=cfg.orca_out,
         freqs_cm1=cfg.freqs_cm1,
     )
     if yaml_file != paths["yaml"]:
@@ -100,7 +113,8 @@ def run_pipeline(cfg: ProjectConfig) -> None:
 
     summary = {
         "tae_hartree": cfg.tae_hartree,
-        "orca_out": str(cfg.orca_out),
+        "orca_out": None if cfg.orca_out is None else str(cfg.orca_out),
+        "xyz_geom": None if cfg.xyz_geom is None else str(cfg.xyz_geom),
         "freqs_cm1": cfg.freqs_cm1,
         "case_name": case_name,
         "formula": formula,
