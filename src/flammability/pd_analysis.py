@@ -1,18 +1,30 @@
-from __future__ import annotations
+src/flammability/pd_analysis.pyfrom __future__ import annotations
 
 import math
 import re
 from pathlib import Path
 
 import matplotlib
+from matplotlib import font_manager
 
 matplotlib.use("Agg")
-matplotlib.rcParams["font.family"] = "Arial"
-matplotlib.rcParams["font.sans-serif"] = ["Arial"]
-matplotlib.rcParams["mathtext.fontset"] = "custom"
-matplotlib.rcParams["mathtext.rm"] = "Arial"
-matplotlib.rcParams["mathtext.it"] = "Arial:italic"
-matplotlib.rcParams["mathtext.bf"] = "Arial:bold"
+
+
+def _has_font(font_name: str) -> bool:
+    try:
+        font_path = font_manager.findfont(font_name, fallback_to_default=False)
+    except ValueError:
+        return False
+    return bool(font_path)
+
+
+if _has_font("Arial"):
+    matplotlib.rcParams["font.family"] = "Arial"
+    matplotlib.rcParams["font.sans-serif"] = ["Arial"]
+    matplotlib.rcParams["mathtext.fontset"] = "custom"
+    matplotlib.rcParams["mathtext.rm"] = "Arial"
+    matplotlib.rcParams["mathtext.it"] = "Arial:italic"
+    matplotlib.rcParams["mathtext.bf"] = "Arial:bold"
 
 import matplotlib.pyplot as plt
 import matplotlib.tri as mtri
