@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "ase",
+  "bidict<0.23",
   "cantera",
   "matplotlib",
   "molsym @ git+https://github.com/ohueter/molsym.git",
