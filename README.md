@@ -1,6 +1,6 @@
 # FlamMap
 
-`FlamMap` is a GitHub-ready flammability workflow package.
+`FlamMap` is a flammability workflow package to assess the flammability of chemical species using calculated adiabatic flame temperature (CAFT).
 
 It is designed around the public interface:
 
@@ -9,6 +9,8 @@ It is designed around the public interface:
   - one `orca.out` file for the frequency calculation
 - Output:
   - one flammability phase-diagram PDF
+  - one `.dat` file containing the CAFT grid
+  - one YAML file containing the species thermochemistry and metadata
   - one JSON summary containing `tae_hartree`, `orca_out`, `Hf`, `LFL`, and `UFL`
 
 This repository is organized as an independent package. It provides:
@@ -64,4 +66,4 @@ By default the pipeline writes:
 The workflow uses fixed values:
 
 - `c_bond = 718.1`
-- threshold = `1600 K`
+- CAFT flammability threshold: `1600 K`
