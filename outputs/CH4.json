@@ -1,0 +1,12 @@
+{
+  "tae_hartree": 0.669583,
+  "orca_out": "/home/jiaqi/nextcloud/work_EPFL/flammability_freq/FlamMap/examples/orca/orca.out",
+  "case_name": "CH4",
+  "formula": "CH4",
+  "Hf_298K_kJ": -74.46453832987233,
+  "LFL_percent": 5.595549903996677,
+  "UFL_percent": 16.957463281083438,
+  "diagram_pdf": "/home/jiaqi/nextcloud/work_EPFL/flammability_freq/FlamMap/outputs/CH4.pdf",
+  "yaml_file": "/home/jiaqi/nextcloud/work_EPFL/flammability_freq/FlamMap/outputs/CH4.yaml",
+  "dat_file": "/home/jiaqi/nextcloud/work_EPFL/flammability_freq/FlamMap/outputs/CH4.dat"
+}

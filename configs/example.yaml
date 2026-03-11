@@ -1,0 +1,14 @@
+inputs:
+  tae_hartree: 0.669583
+  orca_out: examples/orca/orca.out
+  bond_enthalpy_json: data/reference/elem_enthalpies.json
+  symmetry_number_json: data/reference/symmetry_number.json
+  ref_yaml: data/cantera/gri30.yaml
+  prod_yaml: data/cantera/gri30_noKinetics.yaml
+
+outputs:
+  output_dir: outputs
+
+parameters:
+  polys_temps: [200, 1000, 3600]
+  npoints: 101

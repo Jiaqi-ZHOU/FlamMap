@@ -1,0 +1,12 @@
+{
+  "tae_hartree": 0.662689,
+  "orca_out": "/home/jiaqi/nextcloud/work_EPFL/flammability_freq/freq_calc/jobs/CHN3_1cb06a02/orca.out",
+  "case_name": "CHN3",
+  "formula": "CHN3",
+  "Hf_298K_kJ": 656.7766081597211,
+  "LFL_percent": 3.8277431429840982,
+  "UFL_percent": 100.0,
+  "diagram_pdf": "/home/jiaqi/nextcloud/work_EPFL/flammability_freq/FlamMap/outputs/CHN3.pdf",
+  "yaml_file": "/home/jiaqi/nextcloud/work_EPFL/flammability_freq/FlamMap/outputs/CHN3.yaml",
+  "dat_file": "/home/jiaqi/nextcloud/work_EPFL/flammability_freq/FlamMap/outputs/CHN3.dat"
+}

@@ -1,0 +1,6 @@
+{
+    "H-H": 217.3542027538772,
+    "N-N": 471.45412532571936,
+    "O-O": 248.64485419081757,
+    "_comment": "Atomization enthalpies are in kJ/mol. Computed from W1-F12 electronic energies and ORCA thermal corrections at 298.15 K."
+}
