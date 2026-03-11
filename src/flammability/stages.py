@@ -115,6 +115,7 @@ def run_pipeline(cfg: ProjectConfig) -> None:
     print("Finished. Summary:")
     print(f"LFL (CAFT threshold = {THRESHOLD_TEMPERATURE} K): {lfl:.3f}%")
     print(f"UFL (CAFT threshold = {THRESHOLD_TEMPERATURE} K): {ufl:.3f}%")
+    print(f"Generated YAML: {paths['yaml']}")
     print(f"CAFT DAT: {paths['dat']}")
     print(f"Diagram PDF: {paths['pdf']}")
     print(f"Summary JSON: {paths['json']}")
