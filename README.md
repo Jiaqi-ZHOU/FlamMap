@@ -32,11 +32,13 @@ This repository is organized as an independent package. It provides:
 ## Installation
 
 This project uses `uv` for environment and dependency management.
+Recommended Python version: `3.11`.
 
 1. Create a virtual environment and install dependencies:
 
 ```bash
-uv venv
+uv python install 3.11
+uv venv --python 3.11
 source .venv/bin/activate
 uv sync
 ```
@@ -48,6 +50,7 @@ uv run python run.py configs/example.yaml
 ```
 
 `molsym` is installed from the GitHub repository at `https://github.com/ohueter/molsym`.
+Python `3.11` is recommended because newer Python versions can expose dependency compatibility issues in the scientific stack.
 
 ## Quick Start
 
