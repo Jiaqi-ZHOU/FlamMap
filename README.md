@@ -6,12 +6,13 @@ It is designed around the public interface:
 
 - Input:
   - one floating-point `tae_hartree`
-  - one `orca.out` file for the frequency calculation
+  - one `orca.out` file for molecular structure parsing
+  - either vibrational frequencies parsed from `orca.out` or a direct `freqs_cm1` array in `cm^-1`
 - Output:
   - one flammability phase-diagram PDF
   - one `.dat` file containing the CAFT grid
   - one YAML file containing the species thermochemistry and metadata
-  - one JSON summary containing `tae_hartree`, `orca_out`, `Hf`, `LFL`, and `UFL`
+  - one JSON summary containing `tae_hartree`, `orca_out`, `freqs_cm1`, `Hf`, `LFL`, and `UFL`
 
 This repository is organized as an independent package. It provides:
 
@@ -28,22 +29,43 @@ This repository is organized as an independent package. It provides:
 - `examples/orca/orca.out`: bundled example ORCA frequency output
 - `src/flammability/`: package source
 
+## Installation
+
+This project uses `uv` for environment and dependency management.
+
+1. Create a virtual environment and install dependencies:
+
+```bash
+uv venv
+source .venv/bin/activate
+uv sync
+```
+
+2. Run the CLI:
+
+```bash
+uv run python run.py configs/example.yaml
+```
+
+`molsym` is installed from the GitHub repository at `https://github.com/ohueter/molsym`.
+
 ## Quick Start
 
 1. Create a config file by copying `configs/example.yaml`.
 2. Update `tae_hartree`, `orca_out`, and `output_dir`.
    The repository already includes one example ORCA output at `examples/orca/orca.out`.
+   If you want to override the vibrational frequencies, also set `freqs_cm1` to a list of frequencies in `cm^-1`.
    Paths in the config can be written relative to the `FlamMap` repository root.
 3. Run the pipeline:
 
 ```bash
-python FlamMap/run.py FlamMap/configs/example.yaml
+uv run python run.py configs/example.yaml
 ```
 
 To validate the config only:
 
 ```bash
-python FlamMap/run.py --validate-only FlamMap/configs/example.yaml
+uv run python run.py --validate-only configs/example.yaml
 ```
 
 ## Current Scope
@@ -67,3 +89,9 @@ The workflow uses fixed values:
 
 - `c_bond = 718.1`
 - CAFT flammability threshold: `1600 K`
+
+## Frequency Input Options
+
+- Default: omit `freqs_cm1` and the code will parse vibrational frequencies from `orca.out`.
+- Override: set `inputs.freqs_cm1` to a YAML list of positive frequencies in `cm^-1`.
+- Current constraint: `orca.out` is still required for molecular geometry, symmetry number, and formula inference.

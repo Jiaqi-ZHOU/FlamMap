@@ -12,7 +12,7 @@ dependencies = [
   "ase",
   "cantera",
   "matplotlib",
-  "molsym",
+  "molsym @ git+https://github.com/ohueter/molsym.git",
   "numpy",
   "pandas",
   "PyYAML",
