@@ -11,6 +11,7 @@ import yaml
 class ProjectConfig:
     tae_hartree: float
     orca_out: Path
+    freqs_cm1: list[float] | None
     bond_enthalpy_json: Path
     symmetry_number_json: Path
     ref_yaml: Path
@@ -44,6 +45,7 @@ def load_config(config_path: str | Path) -> ProjectConfig:
     return ProjectConfig(
         tae_hartree=float(inputs["tae_hartree"]),
         orca_out=_pathify_from_repo(inputs["orca_out"], repo_root),
+        freqs_cm1=None if inputs.get("freqs_cm1") is None else [float(x) for x in inputs["freqs_cm1"]],
         bond_enthalpy_json=_pathify_from_repo(inputs["bond_enthalpy_json"], repo_root),
         symmetry_number_json=_pathify_from_repo(inputs["symmetry_number_json"], repo_root),
         ref_yaml=_pathify_from_repo(inputs["ref_yaml"], repo_root),
@@ -72,5 +74,10 @@ def validate_config(cfg: ProjectConfig) -> list[str]:
         errors.append("parameters.npoints must be greater than 1.")
     if not isinstance(cfg.tae_hartree, float):
         errors.append("inputs.tae_hartree must be a float.")
+    if cfg.freqs_cm1 is not None:
+        if not cfg.freqs_cm1:
+            errors.append("inputs.freqs_cm1 must not be empty when provided.")
+        elif any(freq <= 0 for freq in cfg.freqs_cm1):
+            errors.append("inputs.freqs_cm1 must contain only positive frequencies in cm^-1.")
 
     return errors

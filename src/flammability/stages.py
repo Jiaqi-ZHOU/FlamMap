@@ -35,6 +35,7 @@ def _compute_hf(cfg: ProjectConfig, formula: str) -> float:
         symmetry_number_json=cfg.symmetry_number_json,
         bond_enthalpy_json=cfg.bond_enthalpy_json,
         c_bond=C_BOND,
+        freqs_cm1=cfg.freqs_cm1,
     )
     return float(hf_kj)
 
@@ -44,8 +45,9 @@ def run_pipeline(cfg: ProjectConfig) -> None:
     case_name = infer_case_name(formula)
     species_name = case_name
     paths = _output_paths(cfg, case_name)
+    freq_source = "inputs.freqs_cm1" if cfg.freqs_cm1 is not None else str(cfg.orca_out)
     print(f"Running flammability pipeline for {case_name}")
-    print(f"Using TAE = {cfg.tae_hartree:.6f} Ha and frequency file: {cfg.orca_out}")
+    print(f"Using TAE = {cfg.tae_hartree:.6f} Ha and frequency source: {freq_source}")
     print(f"Inferred molecular formula from ORCA structure: {formula}")
 
     print("1. Fitting thermochemistry and generating a Cantera YAML mechanism...")
@@ -61,6 +63,7 @@ def run_pipeline(cfg: ProjectConfig) -> None:
         symmetry_number_json=cfg.symmetry_number_json,
         bond_enthalpy_json=cfg.bond_enthalpy_json,
         c_bond=C_BOND,
+        freqs_cm1=cfg.freqs_cm1,
     )
     if yaml_file != paths["yaml"]:
         raise RuntimeError(f"Unexpected YAML output path: {yaml_file}")
@@ -100,6 +103,7 @@ def run_pipeline(cfg: ProjectConfig) -> None:
     summary = {
         "tae_hartree": cfg.tae_hartree,
         "orca_out": str(cfg.orca_out),
+        "freqs_cm1": cfg.freqs_cm1,
         "case_name": case_name,
         "formula": formula,
         "Hf_298K_kJ": hf_kj,

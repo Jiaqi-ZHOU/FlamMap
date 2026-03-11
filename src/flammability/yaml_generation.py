@@ -12,7 +12,17 @@ from .thermo_extract import count_atoms
 from .thermo_process import get_dft_therms_temps
 
 
-def fit_temp_range(*, formula, tae_hartree, orca_outfile, polys_temps, symmetry_number_json, bond_enthalpy_json, c_bond):
+def fit_temp_range(
+    *,
+    formula,
+    tae_hartree,
+    orca_outfile,
+    polys_temps,
+    symmetry_number_json,
+    bond_enthalpy_json,
+    c_bond,
+    freqs_cm1=None,
+):
     temps_low = np.arange(polys_temps[0], polys_temps[1] + 1, 100)
     temps_high = np.arange(polys_temps[1], polys_temps[2] + 1, 100)
 
@@ -25,6 +35,7 @@ def fit_temp_range(*, formula, tae_hartree, orca_outfile, polys_temps, symmetry_
             symmetry_number_json=symmetry_number_json,
             bond_enthalpy_json=bond_enthalpy_json,
             c_bond=c_bond,
+            freqs_cm1=freqs_cm1,
         )
         cp = cp_kj * 1000
         hf = hf_kj * 1000
@@ -34,7 +45,21 @@ def fit_temp_range(*, formula, tae_hartree, orca_outfile, polys_temps, symmetry_
     return {"fit_low": get_fit_coeffs(temps_low), "fit_high": get_fit_coeffs(temps_high)}
 
 
-def gen_custom_yaml(species_id, *, formula, tae_hartree, orca_out, ref_yaml, prod_yaml, output_dir, polys_temps, symmetry_number_json, bond_enthalpy_json, c_bond):
+def gen_custom_yaml(
+    species_id,
+    *,
+    formula,
+    tae_hartree,
+    orca_out,
+    ref_yaml,
+    prod_yaml,
+    output_dir,
+    polys_temps,
+    symmetry_number_json,
+    bond_enthalpy_json,
+    c_bond,
+    freqs_cm1=None,
+):
     formula = canonical_species_name(formula)
     atom_counts = count_atoms(formula)
     fits = fit_temp_range(
@@ -45,6 +70,7 @@ def gen_custom_yaml(species_id, *, formula, tae_hartree, orca_out, ref_yaml, pro
         symmetry_number_json=symmetry_number_json,
         bond_enthalpy_json=bond_enthalpy_json,
         c_bond=c_bond,
+        freqs_cm1=freqs_cm1,
     )
 
     temps_low = np.arange(polys_temps[0], polys_temps[1] + 1, 100)

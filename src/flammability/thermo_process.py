@@ -5,7 +5,7 @@ import json
 import numpy as np
 import pandas as pd
 
-from .thermo_constants import R, c_cm, cal2J, h, ha2kJ, kB
+from .thermo_constants import Na, R, c_cm, cal2J, h, ha2kJ, kB
 from .thermo_extract import count_atoms, parse_mol_struct, parse_orca_output
 
 
@@ -61,19 +61,44 @@ def calc_vibrational_thermo(freqs_cm1, temperature):
     return cp_vib, h_vib, s_vib
 
 
-def get_dft_quantities(orca_outfile, tae_hartree, symmetry_number_json):
+def calc_zpe_from_freqs(freqs_cm1):
+    zpe_j_per_mol = 0.5 * h * c_cm * Na * np.sum(freqs_cm1)
+    return zpe_j_per_mol / (1000 * cal2J)
+
+
+def _resolve_freqs_cm1(orca_outfile, freqs_cm1):
+    if freqs_cm1 is not None:
+        parsed_freqs_cm = [float(freq) for freq in freqs_cm1]
+        return parsed_freqs_cm, calc_zpe_from_freqs(parsed_freqs_cm), None, None
+
+    parsed_freqs_cm, zpe_kcal, total_mass, e0 = parse_orca_output(orca_outfile)
+    assert parsed_freqs_cm, "No vibrational frequencies found in ORCA output."
+    return parsed_freqs_cm, zpe_kcal, total_mass, e0
+
+
+def get_dft_quantities(orca_outfile, tae_hartree, symmetry_number_json, freqs_cm1=None):
     is_linear, molecular_weight, sigma, inertia = parse_mol_struct(orca_outfile, symmetry_number_json)
-    freqs_cm, zpe_kcal, total_mass, _e0 = parse_orca_output(orca_outfile)
-    assert freqs_cm, "No vibrational frequencies found in ORCA output."
-    assert abs(total_mass - molecular_weight) < 1e-2, "Total mass mismatch in ORCA output."
+    freqs_cm, zpe_kcal, total_mass, _e0 = _resolve_freqs_cm1(orca_outfile, freqs_cm1)
+    if total_mass is not None:
+        assert abs(total_mass - molecular_weight) < 1e-2, "Total mass mismatch in ORCA output."
     return freqs_cm, zpe_kcal, tae_hartree, is_linear, molecular_weight, sigma, inertia
 
 
-def get_dft_therms(orca_outfile, temperature, *, formula, tae_hartree, symmetry_number_json, bond_enthalpy_json, c_bond):
+def get_dft_therms(
+    orca_outfile,
+    temperature,
+    *,
+    formula,
+    tae_hartree,
+    symmetry_number_json,
+    bond_enthalpy_json,
+    c_bond,
+    freqs_cm1=None,
+):
     freqs_cm, zpe_kcal, tae, is_linear, molecular_weight, sigma, inertia = get_dft_quantities(
-        orca_outfile, tae_hartree, symmetry_number_json
+        orca_outfile, tae_hartree, symmetry_number_json, freqs_cm1=freqs_cm1
     )
-    zpe_kj = zpe_kcal * cal2J
+    zpe_kj = 0.0 if zpe_kcal is None else zpe_kcal * cal2J
     cp_vib, h_vib, s_vib = calc_vibrational_thermo(freqs_cm, temperature)
     cp_trans, cp_rot = calc_heat_capacity_trans_rot(is_linear)
     s_trans, s_rot = calc_entropy_trans_rot(molecular_weight, sigma, inertia, temperature, pressure=1.0)
@@ -107,7 +132,17 @@ def get_dft_therms(orca_outfile, temperature, *, formula, tae_hartree, symmetry_
     return cp_kj, hf_kj, s_kj
 
 
-def get_dft_therms_temps(orca_outfile, temps, *, formula, tae_hartree, symmetry_number_json, bond_enthalpy_json, c_bond):
+def get_dft_therms_temps(
+    orca_outfile,
+    temps,
+    *,
+    formula,
+    tae_hartree,
+    symmetry_number_json,
+    bond_enthalpy_json,
+    c_bond,
+    freqs_cm1=None,
+):
     cp_kj_array = np.zeros(len(temps))
     hf_kj_array = np.zeros(len(temps))
     s_kj_array = np.zeros(len(temps))
@@ -120,6 +155,7 @@ def get_dft_therms_temps(orca_outfile, temps, *, formula, tae_hartree, symmetry_
             symmetry_number_json=symmetry_number_json,
             bond_enthalpy_json=bond_enthalpy_json,
             c_bond=c_bond,
+            freqs_cm1=freqs_cm1,
         )
         cp_kj_array[i], hf_kj_array[i], s_kj_array[i] = cp, hf, entropy
     return cp_kj_array, hf_kj_array, s_kj_array
