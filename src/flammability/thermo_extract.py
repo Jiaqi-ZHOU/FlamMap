@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import collections
+import collections.abc
 import json
 import os
 import re
 import tempfile
 from collections import defaultdict
+
+# Compatibility shim for legacy molsym imports on modern Python.
+if not hasattr(collections, "Iterable"):
+    collections.Iterable = collections.abc.Iterable
 
 import molsym
 import numpy as np
