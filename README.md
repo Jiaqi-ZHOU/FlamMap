@@ -95,6 +95,8 @@ The workflow uses fixed values:
 - `c_bond = 718.1`
 - CAFT flammability threshold: `1600 K`
 
+Set `parameters.plot_map: false` to skip writing the phase-diagram PDF while still generating the `.dat`, `.json`, and YAML outputs.
+
 ## Frequency Input Options
 
 - Default: omit `freqs_cm1` and the code will parse vibrational frequencies from `orca.out`.

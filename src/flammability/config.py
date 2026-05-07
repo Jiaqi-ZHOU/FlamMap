@@ -19,6 +19,7 @@ class ProjectConfig:
     output_dir: Path
     polys_temps: list[int]
     npoints: int
+    plot_map: bool
 
 
 def _pathify(value: str | Path) -> Path:
@@ -53,6 +54,7 @@ def load_config(config_path: str | Path) -> ProjectConfig:
         output_dir=_pathify_from_repo(outputs["output_dir"], repo_root),
         polys_temps=[int(x) for x in parameters["polys_temps"]],
         npoints=int(parameters["npoints"]),
+        plot_map=bool(parameters.get("plot_map", True)),
     )
 
 

@@ -58,6 +58,15 @@ def load_dat_file(
     return data[:, 0], data[:, 1], data[:, 2], data[:, 3]
 
 
+def _load_finite_dat_points(
+    dat_file: str | Path,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    o2, n2, fuel, temperatures = load_dat_file(dat_file)
+    x, y = bary_to_cart(o2, n2, fuel)
+    finite_mask = np.isfinite(temperatures)
+    return x[finite_mask], y[finite_mask], temperatures[finite_mask]
+
+
 def _formula_to_mathtext(formula: str) -> str:
     parts = re.findall(r"([A-Z][a-z]?)(\d*)", formula)
     if not parts:
@@ -261,8 +270,9 @@ def _deduplicate_points(
 
 
 def extract_contour_segments(dat_file: str | Path, threshold_temperature: float):
-    o2, n2, fuel, temperatures = load_dat_file(dat_file)
-    x, y = bary_to_cart(o2, n2, fuel)
+    x, y, temperatures = _load_finite_dat_points(dat_file)
+    if len(temperatures) < 3:
+        return []
     triangulation = mtri.Triangulation(x, y)
 
     fig, ax = plt.subplots()
@@ -313,8 +323,9 @@ def plot_phase_diagram(
     lfl_percent: float,
     ufl_percent: float,
 ) -> None:
-    o2, n2, fuel, temperatures = load_dat_file(dat_file)
-    x, y = bary_to_cart(o2, n2, fuel)
+    x, y, temperatures = _load_finite_dat_points(dat_file)
+    if len(temperatures) < 3:
+        raise ValueError("Not enough finite CAFT grid points to plot the phase diagram.")
     triangulation = mtri.Triangulation(x, y)
     segments = extract_contour_segments(dat_file, threshold_temperature)
     color_norm = mcolors.Normalize(vmin=0.0, vmax=3600.0, clip=True)

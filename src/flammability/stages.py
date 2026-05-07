@@ -101,15 +101,20 @@ def run_pipeline(cfg: ProjectConfig) -> None:
         paths["dat"], THRESHOLD_TEMPERATURE
     )
 
-    print("5. Plotting the flammability phase diagram PDF...")
-    plot_phase_diagram(
-        paths["dat"],
-        paths["pdf"],
-        formula=formula,
-        threshold_temperature=THRESHOLD_TEMPERATURE,
-        lfl_percent=lfl,
-        ufl_percent=ufl,
-    )
+    diagram_pdf: str | None = str(paths["pdf"])
+    if cfg.plot_map:
+        print("5. Plotting the flammability phase diagram PDF...")
+        plot_phase_diagram(
+            paths["dat"],
+            paths["pdf"],
+            formula=formula,
+            threshold_temperature=THRESHOLD_TEMPERATURE,
+            lfl_percent=lfl,
+            ufl_percent=ufl,
+        )
+    else:
+        diagram_pdf = None
+        print("5. PlotMap is false; skipping phase diagram PDF generation.")
 
     summary = {
         "tae_hartree": cfg.tae_hartree,
@@ -121,7 +126,7 @@ def run_pipeline(cfg: ProjectConfig) -> None:
         "Hf_298K_kJ": hf_kj,
         "LFL_percent": lfl,
         "UFL_percent": ufl,
-        "diagram_pdf": str(paths["pdf"]),
+        "diagram_pdf": diagram_pdf,
         "yaml_file": str(paths["yaml"]),
         "dat_file": str(paths["dat"]),
     }
@@ -133,5 +138,8 @@ def run_pipeline(cfg: ProjectConfig) -> None:
     print(f"UFL (CAFT threshold = {THRESHOLD_TEMPERATURE} K): {ufl:.3f}%")
     print(f"Generated YAML: {paths['yaml']}")
     print(f"CAFT DAT: {paths['dat']}")
-    print(f"Diagram PDF: {paths['pdf']}")
+    if cfg.plot_map:
+        print(f"Diagram PDF: {paths['pdf']}")
+    else:
+        print("Diagram PDF: skipped")
     print(f"Summary JSON: {paths['json']}")
