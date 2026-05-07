@@ -1,0 +1,7 @@
+# Case data for --mode ab.
+# tae:   total atomization energy in Hartree
+# freqs: vibrational frequencies in cm^-1 (must all be positive;
+#        count must be 3N-5 for linear molecules, 3N-6 otherwise).
+
+tae: 0.669583
+freqs: [1340.40, 1340.57, 1340.65, 1557.35, 1557.45, 3029.19, 3131.50, 3131.75, 3131.78]

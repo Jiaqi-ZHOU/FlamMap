@@ -1,41 +1,17 @@
 # FlamMap
 
-`FlamMap` is a flammability workflow package to assess the flammability of chemical species using calculated adiabatic flame temperature (CAFT).
+`FlamMap` is a flammability workflow package that computes flammability limits and phase diagrams for chemical species using calculated adiabatic flame temperature (CAFT).
 
-It is designed around the public interface:
+The default workflow takes a single XYZ geometry, predicts the total atomization energy and vibrational frequencies via ML models (skala + hip), and produces:
 
-- Input:
-  - one floating-point `tae_hartree`
-  - one geometry source: `orca.out` or `xyz_geom`
-  - either vibrational frequencies parsed from `orca.out` or a direct `freqs_cm1` array in `cm^-1`
-- Output:
-  - one flammability phase-diagram PDF
-  - one `.dat` file containing the CAFT grid
-  - one YAML file containing the species thermochemistry and metadata
-  - one JSON summary containing `tae_hartree`, `orca_out`, `xyz_geom`, `freqs_cm1`, `Hf`, `LFL`, and `UFL`
-
-This repository is organized as an independent package. It provides:
-
-- a packaged Python CLI
-- a config file for a single species run
-- one documented pipeline entry point
-- a fixed workflow that generates the YAML, `.dat`, diagram PDF, and 1600 K flammability limits in one run
-
-## Layout
-
-- `pyproject.toml`: Python package metadata
-- `configs/example.yaml`: example configuration
-- `data/reference/elem_enthalpies.json`: vendored elemental enthalpy corrections
-- `examples/orca/orca.out`: bundled example ORCA frequency output
-- `examples/`: example inputs
-- `src/flammability/`: package source
+- a flammability phase-diagram PDF
+- a `.dat` file containing the CAFT grid
+- a YAML file containing the species thermochemistry
+- a JSON summary including TAE, frequencies, Hf, LFL, and UFL
 
 ## Installation
 
-This project uses `uv` for environment and dependency management.
-Recommended Python version: `3.11`.
-
-1. Create a virtual environment and install dependencies:
+This project uses `uv` for environment and dependency management. Python 3.11 is recommended.
 
 ```bash
 uv python install 3.11
@@ -44,68 +20,57 @@ source .venv/bin/activate
 uv sync
 ```
 
-2. Run the CLI:
+`hip` is installed as a path dependency from `/home/jiaqi/git/hip`.
+`skala` is not packaged; its source dir is loaded via `sys.path` at runtime.
+
+## Usage
+
+### Default: ML mode
+
+Pass an XYZ file. Everything else is auto-resolved from defaults.
 
 ```bash
-uv run python run.py configs/example.yaml
+uv run python run.py examples/molecule.xyz
 ```
 
-`pymsym` is installed as part of `uv sync` and is used to determine the rotational symmetry number directly from the ORCA geometry.
-Python `3.11` is recommended for compatibility with the scientific Python stack used here.
+ML mode requires:
 
-## Quick Start
+- `HIP_CKPT` env var or `--hip-checkpoint PATH` (default: `/home/jiaqi/git/hip/ckpt/hip_v2.ckpt`)
+- `SKALA_TAE_DIR` env var or `--skala-dir PATH` (default: `/home/jiaqi/git/Skala_TAE`)
 
-1. Create a config file by copying `configs/example.yaml`.
-2. Update `tae_hartree`, geometry input, and `output_dir`.
-   The repository already includes one example ORCA output at `examples/orca/orca.out`.
-   If you want to override the vibrational frequencies, also set `freqs_cm1` to a list of frequencies in `cm^-1`.
-   If `orca_out` is omitted, you must provide `xyz_geom` for geometry, formula inference, and symmetry-number detection.
-   Paths in the config can be written relative to the `FlamMap` repository root.
-3. Run the pipeline:
+### AB mode
+
+Provide TAE and frequencies via a small YAML alongside the XYZ:
 
 ```bash
-uv run python run.py configs/example.yaml
+uv run python run.py examples/molecule.xyz --mode ab --yaml examples/molecule_data.yaml
 ```
 
-To validate the config only:
+The case-data YAML contains exactly two fields:
 
-```bash
-uv run python run.py --validate-only configs/example.yaml
+```yaml
+tae:   0.669583                                    # total atomization energy in Hartree
+freqs: [1340.40, 1340.57, 1340.65, 1557.35, 1557.45, 3029.19, 3131.50, 3131.75, 3131.78]  # vibrational frequencies in cm^-1
 ```
 
-## Current Scope
+All frequencies must be positive. The count must match the geometry: `3N-5` for linear molecules, `3N-6` for nonlinear.
 
-The package contains:
+### Other flags
 
-- internal Python modules for thermochemistry-to-YAML generation
-- internal Python modules for sequential CAFT grid computation
-- vendored reference data required for thermo generation
+- `--validate-only` — check inputs and exit
+- `--output-dir DIR` — override `outputs/`
+- `--no-plot` — skip the phase-diagram PDF
+- `--hip-device cpu|cuda` — torch device for hip (default `cpu`)
 
-## Outputs
-
-By default the pipeline writes:
-
-- `<species>.yaml`
-- `<species>.dat`
-- `<species>.pdf`
-- `<species>.json`
-
-The workflow uses fixed values:
+## Fixed workflow constants
 
 - `c_bond = 718.1`
 - CAFT flammability threshold: `1600 K`
 
-Set `parameters.plot_map: false` to skip writing the phase-diagram PDF while still generating the `.dat`, `.json`, and YAML outputs.
+## Layout
 
-## Frequency Input Options
-
-- Default: omit `freqs_cm1` and the code will parse vibrational frequencies from `orca.out`.
-- Override: set `inputs.freqs_cm1` to a YAML list of positive frequencies in `cm^-1`.
-- The number of positive vibrational frequencies must match the geometry: `3N-5` for linear molecules or `3N-6` for nonlinear molecules.
-
-## Geometry Input Rules
-
-- `inputs.orca_out` can provide both geometry and vibrational frequencies.
-- `inputs.xyz_geom` can provide geometry for formula inference, inertia, and symmetry-number detection.
-- If `inputs.freqs_cm1` is provided and `inputs.orca_out` is omitted, `inputs.xyz_geom` is required.
-- If `inputs.freqs_cm1` is omitted, `inputs.orca_out` is required because frequencies must be parsed from ORCA output.
+- `src/flammability/` — package source
+- `data/reference/elem_enthalpies.json` — vendored elemental enthalpy corrections
+- `data/cantera/` — vendored Cantera reference and product mechanisms
+- `examples/molecule.xyz` — sample CH4 geometry
+- `examples/molecule_data.yaml` — sample ab-mode case data for CH4

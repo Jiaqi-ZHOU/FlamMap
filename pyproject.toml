@@ -11,6 +11,7 @@ requires-python = ">=3.10"
 dependencies = [
   "ase",
   "cantera",
+  "hip",
   "matplotlib",
   "numpy",
   "pandas",
@@ -27,3 +28,6 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+hip = { path = "/home/jiaqi/git/hip", editable = true }

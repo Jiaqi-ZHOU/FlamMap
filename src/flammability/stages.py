@@ -26,46 +26,44 @@ def _output_paths(cfg: ProjectConfig, case_name: str) -> dict[str, Path]:
     }
 
 
-def _geometry_source(cfg: ProjectConfig) -> Path:
-    if cfg.orca_out is not None:
-        return cfg.orca_out
-    if cfg.xyz_geom is not None:
-        return cfg.xyz_geom
-    raise ValueError("No geometry source configured.")
+def _resolve_tae_and_freqs(cfg: ProjectConfig) -> tuple[float, list[float], str]:
+    if cfg.mode == "ml":
+        from .ml import compute_freqs, compute_tae
 
+        print("ML mode: computing TAE via skala...")
+        tae = compute_tae(cfg.xyz_geom, skala_dir=cfg.skala_dir)
+        print(f"   TAE = {tae:.6f} Ha")
+        print("ML mode: computing vibrational frequencies via hip...")
+        freqs = compute_freqs(
+            cfg.xyz_geom,
+            checkpoint_path=cfg.hip_checkpoint,
+            device=cfg.hip_device,
+        )
+        print(f"   {len(freqs)} vibrational frequencies (cm^-1)")
+        return tae, freqs, "ml (hip)"
 
-def _compute_hf(cfg: ProjectConfig, formula: str) -> float:
-    geometry_file = _geometry_source(cfg)
-    _cp, hf_kj, _s = get_dft_therms(
-        geometry_file,
-        298.15,
-        formula=formula,
-        tae_hartree=cfg.tae_hartree,
-        bond_enthalpy_json=cfg.bond_enthalpy_json,
-        c_bond=C_BOND,
-        orca_outfile=cfg.orca_out,
-        freqs_cm1=cfg.freqs_cm1,
-    )
-    return float(hf_kj)
+    return cfg.tae, cfg.freqs, "case YAML"
 
 
 def run_pipeline(cfg: ProjectConfig) -> None:
-    geometry_file = _geometry_source(cfg)
+    geometry_file = cfg.xyz_geom
     formula = formula_from_atoms(extract_atoms(geometry_file))
     case_name = infer_case_name(formula)
     species_name = case_name
     paths = _output_paths(cfg, case_name)
-    freq_source = "inputs.freqs_cm1" if cfg.freqs_cm1 is not None else str(cfg.orca_out)
-    print(f"Running flammability pipeline for {case_name}")
+
+    print(f"Running flammability pipeline for {case_name} (mode={cfg.mode})")
     print(f"Using geometry source: {geometry_file}")
-    print(f"Using TAE = {cfg.tae_hartree:.6f} Ha and frequency source: {freq_source}")
     print(f"Inferred molecular formula from geometry: {formula}")
+
+    tae, freqs, freq_source = _resolve_tae_and_freqs(cfg)
+    print(f"Using TAE = {tae:.6f} Ha and frequency source: {freq_source}")
 
     print("1. Fitting thermochemistry and generating a Cantera YAML mechanism...")
     yaml_file = gen_custom_yaml(
         species_name,
         formula=formula,
-        tae_hartree=cfg.tae_hartree,
+        tae=tae,
         geometry_file=geometry_file,
         ref_yaml=cfg.ref_yaml,
         prod_yaml=cfg.prod_yaml,
@@ -73,14 +71,22 @@ def run_pipeline(cfg: ProjectConfig) -> None:
         polys_temps=cfg.polys_temps,
         bond_enthalpy_json=cfg.bond_enthalpy_json,
         c_bond=C_BOND,
-        orca_out=cfg.orca_out,
-        freqs_cm1=cfg.freqs_cm1,
+        freqs=freqs,
     )
     if yaml_file != paths["yaml"]:
         raise RuntimeError(f"Unexpected YAML output path: {yaml_file}")
 
     print("2. Calculating the standard enthalpy of formation at 298.15 K...")
-    hf_kj = _compute_hf(cfg, formula)
+    _cp, hf_kj, _s = get_dft_therms(
+        geometry_file,
+        298.15,
+        formula=formula,
+        tae=tae,
+        bond_enthalpy_json=cfg.bond_enthalpy_json,
+        c_bond=C_BOND,
+        freqs=freqs,
+    )
+    hf_kj = float(hf_kj)
     print(f"   Hf(298.15 K) = {hf_kj:.3f} kJ/mol")
 
     print(
@@ -114,13 +120,13 @@ def run_pipeline(cfg: ProjectConfig) -> None:
         )
     else:
         diagram_pdf = None
-        print("5. PlotMap is false; skipping phase diagram PDF generation.")
+        print("5. plot_map is false; skipping phase diagram PDF generation.")
 
     summary = {
-        "tae_hartree": cfg.tae_hartree,
-        "orca_out": None if cfg.orca_out is None else str(cfg.orca_out),
-        "xyz_geom": None if cfg.xyz_geom is None else str(cfg.xyz_geom),
-        "freqs_cm1": cfg.freqs_cm1,
+        "mode": cfg.mode,
+        "tae": tae,
+        "xyz_geom": str(cfg.xyz_geom),
+        "freqs": freqs,
         "case_name": case_name,
         "formula": formula,
         "Hf_298K_kJ": hf_kj,

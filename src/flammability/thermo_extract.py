@@ -2,49 +2,11 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from pathlib import Path
 
 import numpy as np
 import pymsym
 from ase.data import atomic_numbers
 from ase.data import atomic_masses
-from ase.units import Bohr
-
-
-def extract_atoms_from_orca(orca_outfile):
-    with open(orca_outfile, "r", encoding="utf-8") as handle:
-        lines = handle.readlines()
-
-    last_idx = None
-    for idx, line in enumerate(lines):
-        if "CARTESIAN COORDINATES (A.U.)" in line:
-            last_idx = idx
-
-    if last_idx is None:
-        raise ValueError("No 'CARTESIAN COORDINATES (A.U.)' section found.")
-
-    atoms = []
-    found_section = False
-    for i in range(last_idx, len(lines)):
-        line = lines[i]
-        if not found_section:
-            if "CARTESIAN COORDINATES (A.U.)" in line:
-                found_section = True
-            continue
-        if "MASS" in line and "X" in line and "Y" in line and "Z" in line:
-            continue
-        parts = line.strip().split()
-        if len(parts) == 8 and parts[0].isdigit():
-            symbol = parts[1]
-            mass = float(parts[4])
-            x, y, z = map(float, parts[5:8])
-            atoms.append({"symbol": symbol, "mass": mass, "xyz": np.array([x, y, z]) * Bohr})
-        elif found_section and atoms and (len(parts) < 8 or not parts[0].isdigit()):
-            break
-
-    if not atoms:
-        raise ValueError("No atoms found in the file.")
-    return atoms
 
 
 def extract_atoms_from_xyz(xyz_file):
@@ -84,10 +46,7 @@ def extract_atoms_from_xyz(xyz_file):
 
 
 def extract_atoms(geometry_file):
-    suffix = Path(geometry_file).suffix.lower()
-    if suffix == ".xyz":
-        return extract_atoms_from_xyz(geometry_file)
-    return extract_atoms_from_orca(geometry_file)
+    return extract_atoms_from_xyz(geometry_file)
 
 
 def compute_center_of_mass(atoms):
@@ -133,36 +92,6 @@ def parse_mol_struct(geometry_file):
     inertia, is_linear = get_inertia_and_linearity(inertia_matrix)
     sigma = get_sigma(atoms)
     return is_linear, total_mass, sigma, inertia, len(atoms)
-
-
-def parse_orca_output(orca_outfile):
-    with open(orca_outfile, "r", encoding="utf-8") as handle:
-        lines = handle.readlines()
-    freqs_cm, zpe, total_mass, e0 = [], 0, 0, 0
-    for i, line in enumerate(lines):
-        if "VIBRATIONAL FREQUENCIES" in line:
-            j = i + 5
-            while True:
-                if not re.match(r"\s*\d+:\s+([0-9.]+)", lines[j]):
-                    break
-                match = re.search(r"\d+:\s+([0-9.]+)", lines[j])
-                val = float(match.group(1))
-                if val > 10:
-                    freqs_cm.append(val)
-                j += 1
-        if "Zero point energy" in line:
-            match = re.search(r"(-?[0-9.]+) kcal/mol", line)
-            if match:
-                zpe = float(match.group(1))
-        if "Total Mass" in line:
-            match = re.search(r"(-?[0-9.]+) AMU", line)
-            if match:
-                total_mass = float(match.group(1))
-        if "Electronic energy" in line:
-            match = re.search(r"(-?[0-9.]+) Eh", line)
-            if match:
-                e0 = float(match.group(1))
-    return freqs_cm, zpe, total_mass, e0
 
 
 def count_atoms(formula):
