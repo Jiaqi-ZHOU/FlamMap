@@ -3,16 +3,16 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from .thermo_extract import parse_mol_struct
-
 
 def compute_tae(
     xyz_path: Path,
     *,
     skala_dir: Path,
     basis: str = "def2-tzvp",
-    xc: str = "skala-1.1",
+    xc: str = "skala-1.0",
 ) -> float:
+    from collections import Counter
+
     sys.path.insert(0, str(skala_dir))
     try:
         from src.energy_calculator import EnergyCalculator
@@ -23,18 +23,55 @@ def compute_tae(
 
     EnergyCalculator.XC = xc
     atoms = read_xyz(str(xyz_path))
-    return float(EnergyCalculator(basis=basis).compute_atomization_energy(atoms))
+    calc = EnergyCalculator(basis=basis)
+
+    atomic_energies = calc.atomic_reference_energies()
+    molecular_energy = calc.compute_molecular_energy(calc.atom_block(atoms))
+
+    counts = Counter(symbol for symbol, *_ in atoms)
+    separated = sum(
+        counts.get(el, 0) * atomic_energies[el] for el in calc.ALLOWED_ELEMENTS
+    )
+    tae = separated - molecular_energy
+
+    print(f"   Element reference energies (xc={xc}, basis={basis}):")
+    for el in ("H", "C", "N", "O"):
+        if el in atomic_energies:
+            print(
+                f"     {el}: {atomic_energies[el]:.6f} Ha   (count in molecule: {counts.get(el, 0)})"
+            )
+    print(f"   Molecular energy: {molecular_energy:.6f} Ha")
+    print(
+        f"   TAE = sum(n_i * E_atom_i) - E_mol "
+        f"= {separated:.6f} - ({molecular_energy:.6f}) = {tae:.6f} Ha"
+    )
+
+    return float(tae)
 
 
 def _apply_hip_torch_patches() -> None:
+    import os
     import types
 
     import torch
+
+    os.environ.setdefault("HIP_STRICT_PATHS", "0")
+
+    if not getattr(torch.load, "_flammap_unsafe_patched", False):
+        _orig_load = torch.load
+
+        def _trusted_load(*args, **kwargs):
+            kwargs["weights_only"] = False
+            return _orig_load(*args, **kwargs)
+
+        _trusted_load._flammap_unsafe_patched = True
+        torch.load = _trusted_load
 
     if not hasattr(torch.ops, "torch_scatter"):
         torch.ops.torch_scatter = types.SimpleNamespace()
 
     if not hasattr(torch.ops.torch_scatter, "segment_sum_coo"):
+
         def segment_sum_coo(src, index, out=None, dim_size=None):
             if dim_size is None:
                 dim_size = int(index.max().item()) + 1 if index.numel() > 0 else 0
@@ -49,6 +86,7 @@ def _apply_hip_torch_patches() -> None:
         torch.ops.torch_scatter.segment_sum_coo = segment_sum_coo
 
     if not hasattr(torch.ops.torch_scatter, "segment_sum_csr"):
+
         def segment_sum_csr(src, indptr, out=None):
             n = int(indptr.numel() - 1)
             if out is None:
@@ -96,6 +134,10 @@ def _apply_hip_torch_patches() -> None:
 
     pyg_pool.radius_graph = radius_graph_naive
 
+    import torch_geometric.nn as pyg_nn
+
+    pyg_nn.radius_graph = radius_graph_naive
+
 
 def _hessian_to_3n(hessian, natoms: int):
     import numpy as np
@@ -121,13 +163,17 @@ def _eigvals_eV_A2_to_cm1(eigvals):
     import numpy as np
     import scipy.constants as const
 
-    scale = (const.e / (1e-10 * 1e-10)) / const.physical_constants["atomic mass constant"][0]
+    scale = (const.e / (1e-10 * 1e-10)) / const.physical_constants[
+        "atomic mass constant"
+    ][0]
     omega = np.sqrt(np.abs(eigvals) * scale)
     wn = omega / (2.0 * np.pi * const.c * 100.0)
     return np.sign(eigvals) * wn
 
 
-def compute_freqs(xyz_path: Path, *, checkpoint_path: Path, device: str = "cpu") -> list[float]:
+def compute_freqs(
+    xyz_path: Path, *, checkpoint_path: Path, device: str = "cpu"
+) -> list[float]:
     _apply_hip_torch_patches()
 
     import sys
@@ -137,7 +183,6 @@ def compute_freqs(xyz_path: Path, *, checkpoint_path: Path, device: str = "cpu")
     from hip.equiformer_torch_calculator import EquiformerTorchCalculator
     from hip.frequency_analysis import analyze_frequencies_np
 
-    is_linear, *_ = parse_mol_struct(xyz_path)
     atoms = read(str(xyz_path))
     symbols = atoms.get_chemical_symbols()
     natoms = len(symbols)
@@ -153,10 +198,7 @@ def compute_freqs(xyz_path: Path, *, checkpoint_path: Path, device: str = "cpu")
 
     fa = analyze_frequencies_np(hessian, pos_ang, symbols)
     wn_cm1 = _eigvals_eV_A2_to_cm1(fa["eigvals"])
-
-    n_drop = 5 if is_linear else 6
-    order = np.argsort(np.abs(wn_cm1))
-    vibrational = np.sort(wn_cm1[order[n_drop:]])
+    vibrational = np.sort(wn_cm1)
 
     negative = vibrational[vibrational < 0]
     if negative.size > 0:

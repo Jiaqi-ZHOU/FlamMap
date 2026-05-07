@@ -11,13 +11,16 @@ requires-python = ">=3.10"
 dependencies = [
   "ase",
   "cantera",
+  "dftd3",
   "hip",
   "matplotlib",
   "numpy",
   "pandas",
   "pymsym",
+  "pyscf",
   "PyYAML",
-  "scipy",
+  "scipy<1.15",
+  "skala",
 ]
 
 [project.scripts]
