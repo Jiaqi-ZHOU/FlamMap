@@ -64,7 +64,7 @@ All frequencies must be positive. The count must match the geometry: `3N-5` for 
 
 ## Fixed workflow constants
 
-- `c_bond = 718.1`
+- Elemental atomization enthalpies dH_f(X,g,298.15K), kJ/mol per atom, from CODATA Key Values for Thermodynamics (Cox, Wagman & Medvedev, 1989; redistributed by NIST WebBook): H = 217.998, C = 716.68, N = 472.68, O = 249.18. Stored in `data/reference/elem_enthalpies.json` with per-element citations.
 - CAFT flammability threshold: `1600 K`
 
 ## Layout

@@ -9,7 +9,7 @@ import yaml
 from .nasa import fit_nasa7_poly
 from .species import canonical_species_name
 from .thermo_extract import count_atoms
-from .thermo_process import get_dft_therms_temps
+from .thermo_process import get_thermo_temps
 
 
 def fit_temp_range(
@@ -19,20 +19,18 @@ def fit_temp_range(
     geometry_file,
     polys_temps,
     bond_enthalpy_json,
-    c_bond,
     freqs,
 ):
     temps_low = np.arange(polys_temps[0], polys_temps[1] + 1, 100)
     temps_high = np.arange(polys_temps[1], polys_temps[2] + 1, 100)
 
     def get_fit_coeffs(temps):
-        cp_kj, hf_kj, s_kj = get_dft_therms_temps(
+        cp_kj, hf_kj, s_kj = get_thermo_temps(
             geometry_file,
             temps,
             formula=formula,
             tae=tae,
             bond_enthalpy_json=bond_enthalpy_json,
-            c_bond=c_bond,
             freqs=freqs,
         )
         cp = cp_kj * 1000
@@ -54,7 +52,6 @@ def gen_custom_yaml(
     output_dir,
     polys_temps,
     bond_enthalpy_json,
-    c_bond,
     freqs,
 ):
     formula = canonical_species_name(formula)
@@ -65,7 +62,6 @@ def gen_custom_yaml(
         geometry_file=geometry_file,
         polys_temps=polys_temps,
         bond_enthalpy_json=bond_enthalpy_json,
-        c_bond=c_bond,
         freqs=freqs,
     )
 

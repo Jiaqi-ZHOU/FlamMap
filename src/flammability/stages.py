@@ -8,10 +8,9 @@ from .config import ProjectConfig
 from .pd_analysis import compute_flammability_limits, plot_phase_diagram
 from .species import infer_case_name
 from .thermo_extract import extract_atoms, formula_from_atoms
-from .thermo_process import get_dft_therms
+from .thermo_process import get_thermo
 from .yaml_generation import gen_custom_yaml
 
-C_BOND = 718.1
 THRESHOLD_TEMPERATURE = 1600
 
 
@@ -70,20 +69,18 @@ def run_pipeline(cfg: ProjectConfig) -> None:
         output_dir=cfg.output_dir,
         polys_temps=cfg.polys_temps,
         bond_enthalpy_json=cfg.bond_enthalpy_json,
-        c_bond=C_BOND,
         freqs=freqs,
     )
     if yaml_file != paths["yaml"]:
         raise RuntimeError(f"Unexpected YAML output path: {yaml_file}")
 
     print("2. Calculating the standard enthalpy of formation at 298.15 K...")
-    _cp, hf_kj, _s = get_dft_therms(
+    _cp, hf_kj, _s = get_thermo(
         geometry_file,
         298.15,
         formula=formula,
         tae=tae,
         bond_enthalpy_json=cfg.bond_enthalpy_json,
-        c_bond=C_BOND,
         freqs=freqs,
     )
     hf_kj = float(hf_kj)

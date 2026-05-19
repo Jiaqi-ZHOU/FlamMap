@@ -1,6 +1,17 @@
 {
-    "H-H": 217.3542027538772,
-    "N-N": 471.45412532571936,
-    "O-O": 248.64485419081757,
-    "_comment": "Atomization enthalpies are in kJ/mol. Computed from W1-F12 electronic energies and ORCA thermal corrections at 298.15 K."
+    "H": 217.998,
+    "C": 716.68,
+    "N": 472.68,
+    "O": 249.18,
+    "_units": "kJ/mol, per gas-phase atom, at T = 298.15 K",
+    "_meaning": "Each value is the standard enthalpy of formation of the monatomic gas, dH_f(X,g,298.15K), i.e. the enthalpy required to take one mole of element X from its standard state (H2/N2/O2 ideal gas at 1 bar; graphite for carbon) to gas-phase atoms X(g). The value already includes the ZPE and finite-temperature contributions of the standard state, so no vibrational analysis of H2/N2/O2 (or of graphite phonons) is needed at runtime.",
+    "_source": "CODATA Key Values for Thermodynamics (Cox, Wagman & Medvedev, Hemisphere Publishing, 1989), as redistributed by the NIST Chemistry WebBook.",
+    "_uncertainty_kJ_per_mol": {"H": 0.006, "C": 0.45, "N": 0.40, "O": 0.10},
+    "_urls": {
+        "H": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C12385136&Units=SI&Mask=1",
+        "C": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C7440440&Units=SI&Mask=1",
+        "N": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C17778880&Units=SI&Mask=1",
+        "O": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C17778802&Units=SI&Mask=1"
+    },
+    "_previous_values_note": "Earlier H/N/O values (217.354, 471.454, 248.645) were computed from W1-F12 electronic energies + ORCA thermal corrections, and C used a separate constant of 718.1 kJ/mol hard-coded in stages.py. They were all within ~1.5 kJ/mol of CODATA but introduced a dependency on a private high-level calculation; CODATA values are experimentally derived and are the conventional reference for dH_f tables, so we use them directly and unify all four elements in this file."
 }

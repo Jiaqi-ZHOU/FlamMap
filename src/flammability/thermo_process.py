@@ -71,7 +71,7 @@ def expected_vibrational_mode_count(natoms, is_linear):
     return 3 * natoms - (5 if is_linear else 6)
 
 
-def get_dft_quantities(geometry_file, tae, *, freqs):
+def get_thermo_inputs(geometry_file, tae, *, freqs):
     is_linear, molecular_weight, sigma, inertia, natoms = parse_mol_struct(geometry_file)
     freqs_cm = [float(freq) for freq in freqs]
     zpe_kcal = calc_zpe_from_freqs(freqs_cm)
@@ -83,17 +83,16 @@ def get_dft_quantities(geometry_file, tae, *, freqs):
     return freqs_cm, zpe_kcal, tae, is_linear, molecular_weight, sigma, inertia
 
 
-def get_dft_therms(
+def get_thermo(
     geometry_file,
     temperature,
     *,
     formula,
     tae,
     bond_enthalpy_json,
-    c_bond,
     freqs,
 ):
-    freqs_cm, zpe_kcal, tae, is_linear, molecular_weight, sigma, inertia = get_dft_quantities(
+    freqs_cm, zpe_kcal, tae, is_linear, molecular_weight, sigma, inertia = get_thermo_inputs(
         geometry_file, tae, freqs=freqs
     )
     zpe_kj = zpe_kcal * cal2J
@@ -109,16 +108,13 @@ def get_dft_therms(
         elem_dict = json.load(handle)
     elem_corr_kj = 0.0
     for elem, count in atom_counts.items():
-        if elem == "C":
-            atom_corr = c_bond
-        elif elem == "H":
-            atom_corr = elem_dict["H-H"]
-        elif elem == "O":
-            atom_corr = elem_dict["O-O"]
-        elif elem == "N":
-            atom_corr = elem_dict["N-N"]
-        else:
-            raise KeyError(f"Unsupported element in formula: {elem}")
+        try:
+            atom_corr = elem_dict[elem]
+        except KeyError:
+            raise KeyError(
+                f"Unsupported element {elem!r} in formula; "
+                f"no entry in {bond_enthalpy_json}."
+            ) from None
         elem_corr_kj += atom_corr * count
 
     num_atom = sum(atom_counts.values())
@@ -130,27 +126,25 @@ def get_dft_therms(
     return cp_kj, hf_kj, s_kj
 
 
-def get_dft_therms_temps(
+def get_thermo_temps(
     geometry_file,
     temps,
     *,
     formula,
     tae,
     bond_enthalpy_json,
-    c_bond,
     freqs,
 ):
     cp_kj_array = np.zeros(len(temps))
     hf_kj_array = np.zeros(len(temps))
     s_kj_array = np.zeros(len(temps))
     for i, temperature in enumerate(temps):
-        cp, hf, entropy = get_dft_therms(
+        cp, hf, entropy = get_thermo(
             geometry_file,
             temperature,
             formula=formula,
             tae=tae,
             bond_enthalpy_json=bond_enthalpy_json,
-            c_bond=c_bond,
             freqs=freqs,
         )
         cp_kj_array[i], hf_kj_array[i], s_kj_array[i] = cp, hf, entropy
