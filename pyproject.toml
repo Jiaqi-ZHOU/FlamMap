@@ -7,7 +7,7 @@ name = "flammap"
 version = "0.1.0"
 description = "Config-driven pipeline for generating flammability limits and phase diagrams."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 dependencies = [
   "ase",
   "cantera",
@@ -21,6 +21,7 @@ dependencies = [
   "PyYAML",
   "scipy<1.15",
   "skala",
+  "torch",
 ]
 
 [project.scripts]
@@ -33,4 +34,10 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.uv.sources]
-hip = { path = "/home/jiaqi/git/hip", editable = true }
+hip = { git = "https://github.com/BurgerAndreas/hip" }
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
