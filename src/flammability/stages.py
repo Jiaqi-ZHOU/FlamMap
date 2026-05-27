@@ -25,40 +25,58 @@ def _output_paths(cfg: ProjectConfig, case_name: str) -> dict[str, Path]:
     }
 
 
-def _resolve_tae_and_freqs(cfg: ProjectConfig) -> tuple[float, list[float], str]:
+def _resolve_tae_and_freqs(
+    cfg: ProjectConfig, *, quiet: bool = False
+) -> tuple[float, list[float], str]:
     if cfg.mode == "ml":
-        from .ml import compute_freqs, compute_tae
+        from .ml import compute_freqs, compute_tae, resolve_device_for_xyz
 
-        print("ML mode: computing TAE via skala...")
-        tae = compute_tae(cfg.xyz_geom, skala_dir=cfg.skala_dir)
-        print(f"   TAE = {tae:.6f} Ha")
-        print("ML mode: computing vibrational frequencies via hip...")
+        skala_device = resolve_device_for_xyz(cfg.skala_device, cfg.xyz_geom)
+        hip_device = resolve_device_for_xyz(cfg.hip_device, cfg.xyz_geom)
+
+        if not quiet:
+            print(f"ML mode: computing TAE via skala (device={skala_device})...")
+        tae = compute_tae(cfg.xyz_geom, device=skala_device)
+        if not quiet:
+            print(f"   TAE = {tae:.6f} Ha")
+            print(
+                f"ML mode: computing vibrational frequencies via hip (device={hip_device})..."
+            )
         freqs = compute_freqs(
             cfg.xyz_geom,
             checkpoint_path=cfg.hip_checkpoint,
-            device=cfg.hip_device,
+            device=hip_device,
         )
-        print(f"   {len(freqs)} vibrational frequencies (cm^-1)")
+        if not quiet:
+            print(f"   {len(freqs)} vibrational frequencies (cm^-1)")
         return tae, freqs, "ml (hip)"
 
     return cfg.tae, cfg.freqs, "case YAML"
 
 
-def run_pipeline(cfg: ProjectConfig) -> None:
+def run_pipeline(
+    cfg: ProjectConfig,
+    *,
+    quiet: bool = False,
+    case_name_override: str | None = None,
+) -> dict:
     geometry_file = cfg.xyz_geom
     formula = formula_from_atoms(extract_atoms(geometry_file))
-    case_name = infer_case_name(formula)
+    case_name = case_name_override or infer_case_name(formula)
     species_name = case_name
     paths = _output_paths(cfg, case_name)
 
-    print(f"Running flammability pipeline for {case_name} (mode={cfg.mode})")
-    print(f"Using geometry source: {geometry_file}")
-    print(f"Inferred molecular formula from geometry: {formula}")
+    if not quiet:
+        print(f"Running flammability pipeline for {case_name} (mode={cfg.mode})")
+        print(f"Using geometry source: {geometry_file}")
+        print(f"Inferred molecular formula from geometry: {formula}")
 
-    tae, freqs, freq_source = _resolve_tae_and_freqs(cfg)
-    print(f"Using TAE = {tae:.6f} Ha and frequency source: {freq_source}")
+    tae, freqs, freq_source = _resolve_tae_and_freqs(cfg, quiet=quiet)
+    if not quiet:
+        print(f"Using TAE = {tae:.6f} Ha and frequency source: {freq_source}")
 
-    print("1. Fitting thermochemistry and generating a Cantera YAML mechanism...")
+    if not quiet:
+        print("1. Fitting thermochemistry and generating a Cantera YAML mechanism...")
     yaml_file = gen_custom_yaml(
         species_name,
         formula=formula,
@@ -74,7 +92,8 @@ def run_pipeline(cfg: ProjectConfig) -> None:
     if yaml_file != paths["yaml"]:
         raise RuntimeError(f"Unexpected YAML output path: {yaml_file}")
 
-    print("2. Calculating the standard enthalpy of formation at 298.15 K...")
+    if not quiet:
+        print("2. Calculating the standard enthalpy of formation at 298.15 K...")
     _cp, hf_kj, _s = get_thermo(
         geometry_file,
         298.15,
@@ -84,11 +103,11 @@ def run_pipeline(cfg: ProjectConfig) -> None:
         freqs=freqs,
     )
     hf_kj = float(hf_kj)
-    print(f"   Hf(298.15 K) = {hf_kj:.3f} kJ/mol")
-
-    print(
-        "3. Computing the CAFT ternary phase diagram grid and writing the .dat file..."
-    )
+    if not quiet:
+        print(f"   Hf(298.15 K) = {hf_kj:.3f} kJ/mol")
+        print(
+            "3. Computing the CAFT ternary phase diagram grid and writing the .dat file..."
+        )
     _fuel, ok, msg = compute_ternary_phase_diagram(
         paths["yaml"],
         cfg.output_dir,
@@ -97,16 +116,18 @@ def run_pipeline(cfg: ProjectConfig) -> None:
     if not ok:
         raise RuntimeError(msg)
 
-    print(
-        f"4. Extracting lower and upper flammability limits at {THRESHOLD_TEMPERATURE} K..."
-    )
+    if not quiet:
+        print(
+            f"4. Extracting lower and upper flammability limits at {THRESHOLD_TEMPERATURE} K..."
+        )
     lfl, ufl, _segments = compute_flammability_limits(
         paths["dat"], THRESHOLD_TEMPERATURE
     )
 
     diagram_pdf: str | None = str(paths["pdf"])
     if cfg.plot_map:
-        print("5. Plotting the flammability phase diagram PDF...")
+        if not quiet:
+            print("5. Plotting the flammability phase diagram PDF...")
         plot_phase_diagram(
             paths["dat"],
             paths["pdf"],
@@ -117,7 +138,8 @@ def run_pipeline(cfg: ProjectConfig) -> None:
         )
     else:
         diagram_pdf = None
-        print("5. plot_map is false; skipping phase diagram PDF generation.")
+        if not quiet:
+            print("5. plot_map is false; skipping phase diagram PDF generation.")
 
     summary = {
         "mode": cfg.mode,
@@ -136,6 +158,9 @@ def run_pipeline(cfg: ProjectConfig) -> None:
     with open(paths["json"], "w", encoding="utf-8") as handle:
         json.dump(summary, handle, indent=2)
 
+    if quiet:
+        return summary
+
     print("Finished. Summary:")
     print(f"LFL (CAFT threshold = {THRESHOLD_TEMPERATURE} K): {lfl:.3f}%")
     print(f"UFL (CAFT threshold = {THRESHOLD_TEMPERATURE} K): {ufl:.3f}%")
@@ -146,3 +171,4 @@ def run_pipeline(cfg: ProjectConfig) -> None:
     else:
         print("Diagram PDF: skipped")
     print(f"Summary JSON: {paths['json']}")
+    return summary

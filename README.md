@@ -11,17 +11,38 @@ The default workflow takes a single XYZ geometry, predicts the total atomization
 
 ## Installation
 
-This project uses `uv` for environment and dependency management. Python 3.11 is recommended.
+This project uses `uv` for environment and dependency management. Python 3.12 is required (pinned by `hip`).
+
+`hip` and `skala` are pinned to specific upstream commits in [pyproject.toml](pyproject.toml) and pulled by `uv sync` — no sibling clones required. Bump the `rev` SHAs under `[tool.uv.sources]` to track newer upstream code.
+
+GPU install (CUDA 12.1 wheels, suitable for NVIDIA drivers ≥ 530):
 
 ```bash
-uv python install 3.11
-uv venv --python 3.11
-source .venv/bin/activate
+git clone <flammap-url>
+cd FlamMap
+uv python install 3.12
 uv sync
 ```
 
-`hip` is installed as a path dependency from `/home/jiaqi/git/hip`.
-`skala` is not packaged; its source dir is loaded via `sys.path` at runtime.
+`uv sync` pulls the cu121 PyTorch wheels (`torch==2.5.1+cu121`) plus the matching `pyg-lib`, `torch-scatter`, `torch-sparse`, `torch-cluster` GPU wheels from the PyG wheel index, `cupy-cuda12x` and `gpu4pyscf-cuda12x` for the skala GPU SCF, and clones+builds `hip` and `skala` from GitHub at the pinned commits.
+
+For local development against a live checkout, edit `[tool.uv.sources]` in [pyproject.toml](pyproject.toml) to swap `{ git = ..., rev = ... }` for `{ path = "../hip", editable = true }` (and likewise for skala).
+
+Verify the GPU stack:
+
+```bash
+uv run python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
+
+> **Driver note.** The pin is cu121 because CUDA 12.6 wheels require driver ≥ 560. If you have a newer driver and want cu126, change the `pytorch-cu121` index URL to `https://download.pytorch.org/whl/cu126`, bump the find-links URL to `torch-2.11.0+cu126`, and use `hip[cuda126]` instead of `hip[cuda121]` in `pyproject.toml`.
+
+`compute_tae` calls the installed `skala` package directly: `skala.gpu4pyscf.SkalaKS` when `--skala-device cuda` (end-to-end gpu4pyscf), `skala.pyscf.SkalaKS` when `--skala-device cpu`. Per-element reference SCFs (H/C/N/O) are cached to `~/.cache/flammap/atomic_refs_<xc>_<basis>.json` (override with `FLAMMAP_CACHE`) so they run once per (xc, basis) pair.
+
+To run the full pipeline on GPU:
+
+```bash
+uv run python run.py examples/molecule.xyz --skala-device cuda --hip-device cuda
+```
 
 ## Usage
 
@@ -33,10 +54,10 @@ Pass an XYZ file. Everything else is auto-resolved from defaults.
 uv run python run.py examples/molecule.xyz
 ```
 
-ML mode requires:
+ML mode needs the hip checkpoint and the installed `skala` package. Both are resolved automatically:
 
-- `HIP_CKPT` env var or `--hip-checkpoint PATH` (default: `/home/jiaqi/git/hip/ckpt/hip_v2.ckpt`)
-- `SKALA_TAE_DIR` env var or `--skala-dir PATH` (default: `/home/jiaqi/git/Skala_TAE`)
+- hip checkpoint — if `--hip-checkpoint PATH` and `HIP_CKPT` are both unset, `hip_v3_cf.ckpt` (the conservative-forces variant, trained with `model.direct_forces=False` — appropriate for Hessian-based frequency analysis) is downloaded from [`huggingface.co/andreasburger/hip`](https://huggingface.co/andreasburger/hip) on first use and cached under `$HF_HOME` (default `~/.cache/huggingface/hub/`). Subsequent runs hit the cache. Set `--hip-checkpoint` / `HIP_CKPT` to point at a local file (e.g. `ckpt/hip_v3.ckpt`) to skip the download or use a different variant.
+- `skala` — provided by `uv sync`. Functional weights (`skala-1.0`, `skala-1.1`) are themselves pulled from HuggingFace on first use by the `skala` package.
 
 ### AB mode
 
@@ -60,7 +81,29 @@ All frequencies must be positive. The count must match the geometry: `3N-5` for 
 - `--validate-only` — check inputs and exit
 - `--output-dir DIR` — override `outputs/`
 - `--no-plot` — skip the phase-diagram PDF
-- `--hip-device cpu|cuda` — torch device for hip (default `cpu`)
+- `--hip-device auto|cpu|cuda` — torch device for hip (default `auto`)
+- `--skala-device auto|cpu|cuda` — torch device for the skala SCF (default `auto`)
+
+`auto` reads the XYZ and picks `cuda` if the molecule has more than 10 heavy (non-H) atoms and CUDA is actually available; otherwise `cpu`. Small molecules go faster on CPU because of the ~10-15 s cupy/gpu4pyscf init cost. Override with `--skala-device cuda` etc. if you want a specific device.
+
+### Batch mode (12k molecules in ~2 h on a 96-core box)
+
+```bash
+ls molecules/*.xyz > inputs.txt
+uv run python run.py --input-list inputs.txt --jobs 12 --no-plot --skip-existing
+```
+
+- `--input-list FILE` — text file with one XYZ path per line. Blank lines and lines starting with `#` are ignored.
+- `--jobs N` — parallel worker processes. Workers use `multiprocessing` with `spawn`, so CUDA contexts are safe. Each worker is automatically capped at `nproc / jobs` OMP threads to avoid oversubscription. For a 96-core box, `--jobs 12` gives each worker 8 threads, which is the sweet spot for small CHON molecules.
+- `--skip-existing` — skip XYZ files whose output JSON already exists in `--output-dir`. Use this to resume after a crash.
+- `--no-plot` — recommended for big batches (~5 s/molecule saved).
+
+Per-molecule outputs land in `--output-dir` named by the **XYZ filename stem** (not the chemical formula — avoids collisions between isomers with the same formula). The batch driver additionally writes:
+
+- `outputs/_summary.csv` — one row per successful molecule. Columns: `name, xyz, formula, tae_Ha, Hf_298K_kJ, LFL_percent, UFL_percent, n_freqs, skala_device, hip_device, elapsed_s`. Appended across runs.
+- `outputs/_failed.jsonl` — one JSON object per failure (`name, xyz, error_type, error, traceback`). Appended across runs.
+
+Failures (parse errors, SCF non-convergence, imaginary modes …) are logged and the loop continues; one bad molecule never kills the batch.
 
 ## Fixed workflow constants
 

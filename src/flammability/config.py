@@ -13,8 +13,6 @@ DEFAULT_BOND_ENTHALPY_JSON = REPO_ROOT / "data" / "reference" / "elem_enthalpies
 DEFAULT_REF_YAML = REPO_ROOT / "data" / "cantera" / "gri30.yaml"
 DEFAULT_PROD_YAML = REPO_ROOT / "data" / "cantera" / "gri30_noKinetics.yaml"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "outputs"
-DEFAULT_HIP_CHECKPOINT = Path("/home/jiaqi/git/hip/ckpt/hip_v2.ckpt")
-DEFAULT_SKALA_DIR = Path("/home/jiaqi/git/Skala_TAE")
 DEFAULT_POLYS_TEMPS = [200, 1000, 3600]
 DEFAULT_NPOINTS = 101
 
@@ -32,9 +30,9 @@ class ProjectConfig:
     polys_temps: list[int]
     npoints: int
     plot_map: bool
-    hip_checkpoint: Path
+    hip_checkpoint: Path | None
     hip_device: str
-    skala_dir: Path
+    skala_device: str
 
 
 def _resolve_path(value: str | Path | None, fallback: Path) -> Path:
@@ -61,8 +59,8 @@ def build_config(
     output_dir: str | Path | None = None,
     plot_map: bool = True,
     hip_checkpoint: str | Path | None = None,
-    hip_device: str = "cpu",
-    skala_dir: str | Path | None = None,
+    hip_device: str = "auto",
+    skala_device: str = "auto",
 ) -> ProjectConfig:
     tae: float | None = None
     freqs: list[float] | None = None
@@ -81,13 +79,13 @@ def build_config(
         polys_temps=list(DEFAULT_POLYS_TEMPS),
         npoints=DEFAULT_NPOINTS,
         plot_map=plot_map,
-        hip_checkpoint=_resolve_path(
-            hip_checkpoint or os.environ.get("HIP_CKPT"), DEFAULT_HIP_CHECKPOINT
+        hip_checkpoint=(
+            Path(hip_checkpoint).expanduser().resolve()
+            if hip_checkpoint is not None
+            else None
         ),
         hip_device=hip_device,
-        skala_dir=_resolve_path(
-            skala_dir or os.environ.get("SKALA_TAE_DIR"), DEFAULT_SKALA_DIR
-        ),
+        skala_device=skala_device,
     )
 
 
@@ -102,6 +100,10 @@ def validate_config(cfg: ProjectConfig) -> list[str]:
     if cfg.mode not in {"ab", "ml"}:
         errors.append(f"--mode must be 'ab' or 'ml', got {cfg.mode!r}.")
 
+    for label, value in (("skala-device", cfg.skala_device), ("hip-device", cfg.hip_device)):
+        if value not in {"auto", "cpu", "cuda"}:
+            errors.append(f"--{label} must be 'auto', 'cpu', or 'cuda', got {value!r}.")
+
     if cfg.mode == "ab":
         if cfg.tae is None or cfg.freqs is None:
             errors.append(
@@ -113,9 +115,10 @@ def validate_config(cfg: ProjectConfig) -> list[str]:
             elif any(freq <= 0 for freq in cfg.freqs):
                 errors.append("freqs must contain only positive frequencies in cm^-1.")
     else:
-        if not cfg.hip_checkpoint.exists():
-            errors.append(f"Missing hip checkpoint: {cfg.hip_checkpoint} (set HIP_CKPT or pass --hip-checkpoint).")
-        if not cfg.skala_dir.exists():
-            errors.append(f"Missing skala directory: {cfg.skala_dir} (set SKALA_TAE_DIR or pass --skala-dir).")
+        if cfg.hip_checkpoint is not None and not cfg.hip_checkpoint.exists():
+            errors.append(
+                f"Missing hip checkpoint: {cfg.hip_checkpoint} "
+                "(unset --hip-checkpoint / HIP_CKPT to auto-download from HuggingFace)."
+            )
 
     return errors

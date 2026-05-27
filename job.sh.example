@@ -1,0 +1,35 @@
+#!/bin/bash
+# Template SLURM batch script. Copy to job.sh and edit the three knobs below.
+#
+#   cp job.sh.example job.sh
+#   $EDITOR job.sh           # set INPUT_LIST / OUTPUT_DIR / JOBS / --partition
+#   sbatch job.sh
+#
+# `job.sh` itself is gitignored — your personal paths stay out of the repo.
+#
+#SBATCH --job-name=flammap
+#SBATCH --output=slurm_%j.out
+#SBATCH --error=slurm_%j.err
+#SBATCH --partition=PARTITION_NAME    # e.g. workstations, jobs, compute — check `sinfo`
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=96            # match your target node's core count
+#SBATCH --mem=64GB                    # ~4 GB per worker × JOBS; bump if OOM-killed
+#SBATCH --time=24:00:00
+
+set -euo pipefail
+cd "$(dirname "$0")"
+
+# --- edit these three ------------------------------------------------------
+INPUT_LIST=/absolute/path/to/xyzlist.txt    # one XYZ path per line; relative paths
+                                            # are resolved against this file's dir
+OUTPUT_DIR=/absolute/path/to/outputs        # per-mol JSON + _summary.csv + _failed.jsonl
+JOBS=12                                     # parallel workers; 96 cores / 8 threads = 12
+# ---------------------------------------------------------------------------
+
+uv run python run.py \
+    --input-list "$INPUT_LIST" \
+    --output-dir "$OUTPUT_DIR" \
+    --jobs "$JOBS" \
+    --no-plot \
+    --skip-existing

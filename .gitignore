@@ -2,3 +2,11 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 outputs/
+build/
+dist/
+
+# Personal SLURM script — copy job.sh.example to job.sh and edit local paths.
+job.sh
+# SLURM stdout/stderr from sbatch
+slurm_*.out
+slurm_*.err

@@ -11,17 +11,20 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
   "ase",
   "cantera",
+  "cupy-cuda12x",
   "dftd3",
-  "hip",
+  "gpu4pyscf-cuda12x>=1.5,<1.8",
+  "hip[cuda121]",
+  "huggingface_hub>=0.27",
   "matplotlib",
   "numpy",
   "pandas",
   "pymsym",
-  "pyscf",
+  "pyscf>=2.8,<2.14",
   "PyYAML",
   "scipy<1.15",
   "skala",
-  "torch",
+  "torch==2.5.1",
 ]
 
 [project.scripts]
@@ -33,11 +36,35 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# Vendored hip config — see ml.py:_patch_hip_config_path for context.
+"flammability" = ["_hip_data/**/*.yaml"]
+
+# hip and skala are pinned to specific upstream commits so `uv sync` alone is
+# enough to bootstrap FlamMap — no sibling clones required. Bump `rev` to a
+# newer SHA to pick up upstream changes. For local development against a live
+# checkout, override per-user in `uv.toml` or temporarily swap these entries
+# to `{ path = "../hip", editable = true }` / `{ path = "../skala", editable = true }`.
 [tool.uv.sources]
-hip = { git = "https://github.com/BurgerAndreas/hip" }
-torch = [{ index = "pytorch-cpu" }]
+hip = { git = "https://github.com/BurgerAndreas/hip", rev = "06fedad91a558ed1589c79a13bc2b5dca7f733de" }
+skala = { git = "https://github.com/microsoft/skala", rev = "7916d9fc108cb76daf20f893f82c3cd2c8fa0b1e" }
+torch = [{ index = "pytorch-cu121" }]
+torch-geometric = [{ index = "pytorch-cu121" }]
 
 [[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
 explicit = true
+
+[tool.uv]
+# pyg-lib / torch-scatter / torch-sparse / torch-cluster CUDA wheels
+# (versioned like 0.4.0+pt25cu121) live on the PyG wheel index.
+find-links = [
+  "https://data.pyg.org/whl/torch-2.5.1+cu121.html",
+]
+
+[tool.uv.extra-build-dependencies]
+torch-cluster = ["torch", "setuptools", "wheel"]
+torch-scatter = ["torch", "setuptools", "wheel"]
+torch-sparse = ["torch", "setuptools", "wheel"]
+pyg-lib = ["torch", "setuptools", "wheel"]
