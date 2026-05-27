@@ -32,7 +32,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skip-existing",
         action="store_true",
-        help="In batch mode, skip inputs whose output JSON already exists.",
+        help="Skip molecules whose output JSON already exists. Works in both single-molecule "
+        "and batch mode; useful as a HyperQueue retry guard.",
+    )
+    parser.add_argument(
+        "--collect-summary",
+        metavar="XYZ_LIST",
+        default=None,
+        help="Post-processing: scan <output_dir>/json/ and rebuild _summary.csv from the "
+        "per-molecule JSONs. Molecules listed in XYZ_LIST but missing a JSON are written "
+        "to _failed.csv. Use this after a HyperQueue per-molecule batch finishes.",
     )
     parser.add_argument(
         "--mode",
@@ -81,8 +90,19 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
+    if args.collect_summary is not None:
+        from .batch import collect_summary
+
+        collect_summary(
+            input_list=args.collect_summary,
+            output_dir=args.output_dir,
+        )
+        return
+
     if args.xyz is None and args.input_list is None:
-        parser.error("either an xyz positional argument or --input-list is required.")
+        parser.error(
+            "either an xyz positional argument, --input-list, or --collect-summary is required."
+        )
     if args.xyz is not None and args.input_list is not None:
         parser.error("--input-list cannot be combined with a positional xyz argument.")
 
@@ -124,6 +144,17 @@ def main() -> None:
     if args.validate_only:
         print("Inputs are valid.")
         return
+
+    # --skip-existing in single mode is the HyperQueue retry guard: if a previous
+    # task already wrote the JSON for this molecule, exit 0 immediately so HQ
+    # marks the task done. The output path matches batch mode (json/<stem>.json).
+    if args.skip_existing:
+        from pathlib import Path
+
+        json_path = cfg.output_dir / "json" / f"{Path(args.xyz).stem}.json"
+        if json_path.is_file():
+            print(f"--skip-existing: {json_path} already exists, skipping.")
+            return
 
     run_pipeline(cfg)
 

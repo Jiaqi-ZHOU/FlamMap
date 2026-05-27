@@ -110,10 +110,26 @@ Per-molecule outputs land in `--output-dir`, sorted into per-type subdirs and na
 └── _failed.csv           # batch only: one row per failure
 ```
 
-- `_summary.csv` — columns: `name, formula, tae_Ha, Hf_298K_kJ, LFL_percent, UFL_percent, n_freqs, skala_device, hip_device, elapsed_s`. Appended across runs.
-- `_failed.csv` — columns: `name, error_type, error, elapsed_s`. Appended across runs. Re-run a single offending molecule with `run.py <xyz>` to get a full traceback for debugging.
+- `_summary.csv` — columns: `stem, formula, tae_Ha, Hf_298K_kJ, LFL_percent, UFL_percent, n_freqs, elapsed_s`. Appended across runs.
+- `_failed.csv` — columns: `stem, error_type, error, elapsed_s`. Appended across runs. Re-run a single offending molecule with `run.py <xyz>` to get a full traceback for debugging.
+
+`stem` is the trailing `_`-separated piece of the XYZ filename (e.g. `C2H2_ca2cc2cc.xyz` → `ca2cc2cc`) — the unique-hash convention used by most isomer datasets. Per-molecule output files still use the full filename stem.
 
 Failures (parse errors, SCF non-convergence, imaginary modes …) are logged and the loop continues; one bad molecule never kills the batch.
+
+### Multi-node batches via HyperQueue
+
+For batches that need more than one node (e.g. 12k molecules across 12×128-core nodes), use [HyperQueue](https://it4innovations.github.io/hyperqueue/stable/) instead of `--jobs`. HQ schedules one task per molecule across all allocated nodes dynamically, so load balance is naturally better than static SLURM array sharding.
+
+Workflow:
+
+1. Allocate nodes via SLURM, start HQ server on the head node, launch one HQ worker per node with `srun --overlap`.
+2. Submit per-molecule tasks: `hq submit --each-line xyzlist.txt -- python run.py {entry} --skip-existing --no-plot`.
+3. After HQ finishes, aggregate the per-molecule JSONs into the standard summary CSV: `python run.py --collect-summary xyzlist.txt --output-dir <dir>`.
+
+Template script: [job_hq.sh.example](job_hq.sh.example). Copy next to your data, edit `FLAMMAP_DIR` / `INPUT_LIST` / `OUTPUT_DIR` / `--nodes`, `sbatch`.
+
+The `--skip-existing` flag works in single-molecule mode too — that's the HQ retry guard. Re-submitting a failed HQ job re-runs only the molecules whose JSONs don't exist yet. `--collect-summary` leaves `elapsed_s` blank (HQ tracks task timing separately, see `hq job info`).
 
 ## Fixed workflow constants
 

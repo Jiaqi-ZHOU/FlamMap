@@ -7,6 +7,10 @@ dist/
 
 # Personal SLURM script — copy job.sh.example to job.sh and edit local paths.
 job.sh
+job_hq.sh
 # SLURM stdout/stderr from sbatch
 slurm_*.out
 slurm_*.err
+
+# Personal notes — not tracked.
+notes/

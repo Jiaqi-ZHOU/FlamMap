@@ -6,9 +6,13 @@ formula, which can collide across isomers in a batch). The batch driver
 additionally writes:
 
 - ``output_dir/_summary.csv`` — one row per successful molecule.
-- ``output_dir/_failed.csv`` — one row per failed molecule (name, error_type,
+- ``output_dir/_failed.csv`` — one row per failed molecule (stem, error_type,
   error, elapsed_s). Use single-molecule mode (`run.py <one.xyz>`) to get a
   full traceback when debugging a specific failure.
+
+The ``stem`` column is the trailing ``_``-separated segment of the xyz
+filename (e.g. ``"C2H2_ca2cc2cc"`` → ``"ca2cc2cc"``) — typically the unique
+hash that distinguishes isomers in a dataset.
 
 A failure is logged and the loop continues; the whole batch never aborts
 because of a single bad input. Re-running with ``--skip-existing`` resumes
@@ -18,6 +22,7 @@ from wherever the previous attempt died.
 from __future__ import annotations
 
 import csv
+import json
 import multiprocessing as mp
 import os
 import time
@@ -28,20 +33,18 @@ from .config import DEFAULT_OUTPUT_DIR, build_config, validate_config
 
 
 _SUMMARY_FIELDS = (
-    "name",
+    "stem",
     "formula",
     "tae_Ha",
     "Hf_298K_kJ",
     "LFL_percent",
     "UFL_percent",
     "n_freqs",
-    "skala_device",
-    "hip_device",
     "elapsed_s",
 )
 
 _FAILED_FIELDS = (
-    "name",
+    "stem",
     "error_type",
     "error",
     "elapsed_s",
@@ -87,11 +90,11 @@ def _run_one(
     skala_device: str,
 ) -> dict:
     """Run the pipeline for one molecule; never raise."""
-    from .ml import resolve_device_for_xyz
     from .stages import run_pipeline
 
     xyz_path = Path(xyz)
-    name = xyz_path.stem
+    name = xyz_path.stem                  # full file basename, used for output files + console
+    stem = name.split("_")[-1]            # trailing hash segment, used as CSV identifier
     start = time.perf_counter()
 
     try:
@@ -109,25 +112,19 @@ def _run_one(
         if errors:
             raise ValueError("; ".join(errors))
 
-        # Resolve auto here so we can record the actual device in the summary.
-        resolved_skala = resolve_device_for_xyz(cfg.skala_device, cfg.xyz_geom)
-        resolved_hip = resolve_device_for_xyz(cfg.hip_device, cfg.xyz_geom)
-
         summary = run_pipeline(cfg, quiet=True, case_name_override=name)
         elapsed = time.perf_counter() - start
 
         return {
             "status": "ok",
-            "name": name,
-            "xyz": str(xyz_path),  # kept for failure context; excluded from CSV via _SUMMARY_FIELDS
+            "name": name,    # for console display; dropped from CSV via extrasaction="ignore"
+            "stem": stem,
             "formula": summary["formula"],
             "tae_Ha": float(summary["tae"]),
             "Hf_298K_kJ": float(summary["Hf_298K_kJ"]),
             "LFL_percent": float(summary["LFL_percent"]),
             "UFL_percent": float(summary["UFL_percent"]),
             "n_freqs": len(summary.get("freqs") or []),
-            "skala_device": resolved_skala,
-            "hip_device": resolved_hip,
             "elapsed_s": round(elapsed, 3),
         }
     except Exception as exc:
@@ -136,6 +133,7 @@ def _run_one(
         return {
             "status": "fail",
             "name": name,
+            "stem": stem,
             "error_type": type(exc).__name__,
             "error": " ".join(str(exc).split()),  # collapse internal newlines/whitespace
             "elapsed_s": round(time.perf_counter() - start, 3),
@@ -312,3 +310,86 @@ def _record(
             f"[{i}/{total}] {result['name']:24s} FAIL  "
             f"{result['error_type']}: {result['error']}  ({result['elapsed_s']:.1f}s)"
         )
+
+
+def collect_summary(*, input_list: str, output_dir: str | None) -> None:
+    """Rebuild ``_summary.csv`` and ``_failed.csv`` from per-molecule JSONs.
+
+    Use after a HyperQueue (or other external) batch run that produced
+    ``<output_dir>/json/<name>.json`` files but no aggregated CSV. Molecules
+    listed in ``input_list`` but missing a JSON are treated as failures.
+    The ``elapsed_s`` column is left blank because external runners don't
+    feed back per-task timing — check HQ's task report for that.
+    """
+    out_dir = (
+        Path(output_dir).expanduser().resolve()
+        if output_dir is not None
+        else DEFAULT_OUTPUT_DIR
+    )
+    json_dir = out_dir / "json"
+    if not json_dir.is_dir():
+        print(f"ERROR: no json/ subdir found in {out_dir}")
+        raise SystemExit(1)
+
+    input_list_path = Path(input_list).expanduser().resolve()
+    if not input_list_path.is_file():
+        print(f"ERROR: --collect-summary list not found: {input_list_path}")
+        raise SystemExit(1)
+
+    xyz_paths = _read_input_list(input_list_path)
+    summary_csv = out_dir / "_summary.csv"
+    failed_csv = out_dir / "_failed.csv"
+
+    n_ok = 0
+    n_fail = 0
+    with summary_csv.open("w", newline="", encoding="utf-8") as sf, failed_csv.open(
+        "w", newline="", encoding="utf-8"
+    ) as ff:
+        sum_writer = csv.DictWriter(sf, fieldnames=_SUMMARY_FIELDS, extrasaction="ignore")
+        fail_writer = csv.DictWriter(ff, fieldnames=_FAILED_FIELDS, extrasaction="ignore")
+        sum_writer.writeheader()
+        fail_writer.writeheader()
+
+        for p in xyz_paths:
+            name = p.stem
+            stem = name.split("_")[-1]
+            json_path = json_dir / f"{name}.json"
+            if not json_path.is_file():
+                fail_writer.writerow({
+                    "stem": stem,
+                    "error_type": "MissingOutput",
+                    "error": "no json/<name>.json (task failed or never ran — check HQ logs)",
+                    "elapsed_s": "",
+                })
+                n_fail += 1
+                continue
+            try:
+                with json_path.open(encoding="utf-8") as fh:
+                    data = json.load(fh)
+                sum_writer.writerow({
+                    "stem": stem,
+                    "formula": data["formula"],
+                    "tae_Ha": f"{float(data['tae']):.3f}",
+                    "Hf_298K_kJ": f"{float(data['Hf_298K_kJ']):.3f}",
+                    "LFL_percent": f"{float(data['LFL_percent']):.3f}",
+                    "UFL_percent": f"{float(data['UFL_percent']):.3f}",
+                    "n_freqs": len(data.get("freqs") or []),
+                    "elapsed_s": "",
+                })
+                n_ok += 1
+            except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                fail_writer.writerow({
+                    "stem": stem,
+                    "error_type": type(exc).__name__,
+                    "error": " ".join(str(exc).split()) or "malformed JSON",
+                    "elapsed_s": "",
+                })
+                n_fail += 1
+
+    print(
+        f"Collected {len(xyz_paths)} molecules from {input_list_path.name}: "
+        f"{n_ok} ok, {n_fail} failed."
+    )
+    print(f"Summary: {summary_csv}")
+    if n_fail:
+        print(f"Failures: {failed_csv}")

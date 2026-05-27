@@ -1,0 +1,128 @@
+#!/bin/bash
+# Multi-node SLURM batch script using HyperQueue (HQ) for per-molecule
+# scheduling. Copy next to your data (NOT inside the FlamMap repo) and edit
+# the knobs below.
+#
+#   cp /path/to/FlamMap/job_hq.sh.example /scratch/my_project/job_hq.sh
+#   $EDITOR /scratch/my_project/job_hq.sh
+#   cd /scratch/my_project
+#   sbatch job_hq.sh
+#
+# Why HQ instead of plain SLURM array jobs:
+#   - One HQ task per molecule (12k tasks), dynamically scheduled across all
+#     allocated nodes — no static input sharding, no per-shard CSV merging.
+#   - HQ tracks per-task success/failure and stdout/stderr; failed tasks can
+#     be re-submitted by ID without re-running the whole job.
+#   - Better load balance than array jobs when molecule runtimes vary 5-10x.
+#
+#SBATCH --job-name=flammap-hq
+#SBATCH --output=slurm_%j.out
+#SBATCH --error=slurm_%j.err
+#SBATCH --partition=PARTITION_NAME    # e.g. normal, compute — check `sinfo`
+#SBATCH --nodes=12                    # number of nodes you want in parallel
+#SBATCH --ntasks-per-node=1           # one HQ worker per node
+#SBATCH --cpus-per-task=128           # physical cores per node
+#SBATCH --hint=nomultithread          # bind to physical cores only — pyscf/torch
+                                      # do not benefit from HT.
+#SBATCH --mem=480GB                   # ~4 GB × CPUS_PER_TASK
+#SBATCH --time=06:00:00
+
+set -euo pipefail
+
+# --- edit these ------------------------------------------------------------
+FLAMMAP_DIR=/absolute/path/to/FlamMap        # FlamMap repo (where pyproject.toml + .venv live)
+INPUT_LIST=/absolute/path/to/xyzlist.txt     # one XYZ path per line; relative paths
+                                             # are resolved against this file's dir
+OUTPUT_DIR=/absolute/path/to/outputs         # per-mol yaml/dat/pdf/json land here
+
+# CPUs handed to each HQ task (one molecule). 4 is a good default for small
+# CHON molecules — 32 tasks run concurrently per 128-core node.
+CPUS_PER_TASK=4
+
+# Where HQ keeps its server state (per-job, so concurrent batches don't clash).
+HQ_SERVER_DIR="$SCRATCH/hq-server-$SLURM_JOB_ID"
+# ---------------------------------------------------------------------------
+
+mkdir -p "$OUTPUT_DIR" "$HQ_SERVER_DIR"
+
+# Find the HQ binary. If your cluster ships HQ as a module, `module load hyperqueue`
+# above. Otherwise install once with: cargo install hyperqueue (or download a
+# release binary from https://github.com/It4innovations/hyperqueue/releases).
+HQ=${HQ:-hq}
+command -v "$HQ" >/dev/null || { echo "ERROR: hq not in PATH"; exit 1; }
+
+# --- 1. start HQ server on this (head) node, in background -----------------
+"$HQ" --server-dir "$HQ_SERVER_DIR" server start &
+HQ_SERVER_PID=$!
+
+# Stop the server cleanly on script exit (success, failure, or scancel).
+trap '"$HQ" --server-dir "$HQ_SERVER_DIR" server stop 2>/dev/null || true; \
+      kill $HQ_SERVER_PID 2>/dev/null || true' EXIT
+
+# Wait for the server socket to come up.
+until "$HQ" --server-dir "$HQ_SERVER_DIR" server info >/dev/null 2>&1; do
+    sleep 0.5
+done
+
+# --- 2. launch one HQ worker on every allocated node -----------------------
+# srun runs the worker on each node; --overlap lets it share the allocation
+# with the server process on the head node.
+srun --overlap --ntasks="$SLURM_NNODES" --ntasks-per-node=1 \
+    "$HQ" --server-dir "$HQ_SERVER_DIR" worker start \
+        --cpus="$SLURM_CPUS_PER_TASK" \
+        --on-server-lost=finish-running \
+        --idle-timeout=10s &
+
+# Give workers a moment to register before we submit.
+sleep 5
+
+# --- 3. submit one HQ task per molecule ------------------------------------
+# `--each-line` runs the task command once per non-blank line of INPUT_LIST;
+# HQ exposes the line content via the $HQ_ENTRY env var inside the task.
+#
+# We materialise a small wrapper script that closes over FLAMMAP_DIR /
+# OUTPUT_DIR — passing them as `--env` would also work, but the wrapper keeps
+# the submit invocation readable.
+#
+# `--skip-existing` makes each task idempotent: tasks whose JSON already exists
+# return immediately with exit 0, so re-submitting a partially-completed job
+# only re-runs the missing molecules.
+
+WRAPPER="$HQ_SERVER_DIR/flammap_task.sh"
+INPUT_DIR=$(dirname "$INPUT_LIST")
+cat > "$WRAPPER" <<EOF
+#!/bin/bash
+set -e
+# Resolve relative paths in INPUT_LIST the same way batch mode does — against
+# the list file's parent directory, not the task's cwd.
+cd "$INPUT_DIR"
+exec uv run --project "$FLAMMAP_DIR" python "$FLAMMAP_DIR/run.py" "\$HQ_ENTRY" \\
+    --output-dir "$OUTPUT_DIR" --no-plot --skip-existing
+EOF
+chmod +x "$WRAPPER"
+
+mkdir -p "$OUTPUT_DIR/hq_logs"
+
+"$HQ" --server-dir "$HQ_SERVER_DIR" submit \
+    --each-line "$INPUT_LIST" \
+    --cpus "$CPUS_PER_TASK" \
+    --stdout "$OUTPUT_DIR/hq_logs/task-%{TASK_ID}.out" \
+    --stderr "$OUTPUT_DIR/hq_logs/task-%{TASK_ID}.err" \
+    --name flammap \
+    --wait \
+    -- "$WRAPPER"
+
+# --- 4. aggregate per-molecule JSONs into _summary.csv / _failed.csv -------
+# This scans OUTPUT_DIR/json/*.json and reconciles it against INPUT_LIST.
+uv run --project "$FLAMMAP_DIR" python "$FLAMMAP_DIR/run.py" \
+    --collect-summary "$INPUT_LIST" \
+    --output-dir "$OUTPUT_DIR"
+
+# --- 5. dump the per-task report so failures are easy to inspect -----------
+"$HQ" --server-dir "$HQ_SERVER_DIR" job info last > "$OUTPUT_DIR/hq_job_report.txt" || true
+"$HQ" --server-dir "$HQ_SERVER_DIR" task list last --filter=failed \
+    > "$OUTPUT_DIR/hq_failed_tasks.txt" || true
+
+echo "Done. Summary CSV: $OUTPUT_DIR/_summary.csv"
+echo "HQ logs:           $OUTPUT_DIR/hq_logs/"
+echo "Failed tasks:      $OUTPUT_DIR/hq_failed_tasks.txt"
