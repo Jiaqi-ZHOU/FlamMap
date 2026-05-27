@@ -32,15 +32,19 @@ if [[ "${1:-}" == "collect" ]]; then
 fi
 # ---------------------------------------------------------------------------
 
-mkdir -p "$OUTPUT_DIR"
+HQ_LOG_DIR="$OUTPUT_DIR/hq_logs"
+mkdir -p "$OUTPUT_DIR" "$HQ_LOG_DIR"
 
 # Cap BLAS / OMP threads to the CPU budget HQ gives each task — otherwise
 # numpy/pyscf grab all cores on the node and tasks oversubscribe each other.
+# Route per-job stdout/stderr into HQ_LOG_DIR so cwd doesn't fill with job-NNNN/.
 for xyz_file in "$INPUT_DIR"/*.xyz; do
     hq submit --cpus "$CPUS_PER_TASK" \
         --env OMP_NUM_THREADS="$CPUS_PER_TASK" \
         --env OPENBLAS_NUM_THREADS="$CPUS_PER_TASK" \
         --env MKL_NUM_THREADS="$CPUS_PER_TASK" \
+        --stdout "$HQ_LOG_DIR/job-%{JOB_ID}.stdout" \
+        --stderr "$HQ_LOG_DIR/job-%{JOB_ID}.stderr" \
         -- "$VENV_PYTHON" "$RUN_PY" "$xyz_file" \
             --output-dir "$OUTPUT_DIR" --no-plot --skip-existing
 done
