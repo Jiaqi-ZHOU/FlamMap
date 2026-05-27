@@ -36,7 +36,7 @@ def _resolve_tae_and_freqs(
 
         if not quiet:
             print(f"ML mode: computing TAE via skala (device={skala_device})...")
-        tae = compute_tae(cfg.xyz_geom, device=skala_device)
+        tae = compute_tae(cfg.xyz_geom, device=skala_device, quiet=quiet)
         if not quiet:
             print(f"   TAE = {tae:.6f} Ha")
             print(
@@ -46,9 +46,14 @@ def _resolve_tae_and_freqs(
             cfg.xyz_geom,
             checkpoint_path=cfg.hip_checkpoint,
             device=hip_device,
+            quiet=quiet,
         )
         if not quiet:
-            print(f"   {len(freqs)} vibrational frequencies (cm^-1)")
+            print(f"   {len(freqs)} vibrational frequencies (cm^-1):")
+            # 6 per line keeps lines under ~60 cols and is easy to scan
+            for i in range(0, len(freqs), 6):
+                chunk = "  ".join(f"{f:8.2f}" for f in freqs[i : i + 6])
+                print(f"     {chunk}")
         return tae, freqs, "ml (hip)"
 
     return cfg.tae, cfg.freqs, "case YAML"

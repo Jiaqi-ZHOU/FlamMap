@@ -178,11 +178,16 @@ def _skala_energy(
         # skala.gpu4pyscf.SkalaKS, which extends gpu4pyscf classes end-to-end.
         from skala.gpu4pyscf import SkalaKS as SkalaKS_gpu
 
-        ks = SkalaKS_gpu(mol, xc=xc)
+        # SkalaKS construction lazily calls skala.functional.load_functional,
+        # which hits HF Hub for the model weights and triggers the same
+        # hf_xet unauth banner we suppress around hip's ckpt download.
+        with _silenced_fd2():
+            ks = SkalaKS_gpu(mol, xc=xc)
     else:
         from skala.pyscf import SkalaKS
 
-        ks = SkalaKS(mol, xc=xc, device=device)
+        with _silenced_fd2():
+            ks = SkalaKS(mol, xc=xc, device=device)
     return float(ks.kernel())
 
 
@@ -229,6 +234,7 @@ def compute_tae(
     basis: str = "def2-tzvp",
     xc: str = "skala-1.0",
     device: str = "cpu",
+    quiet: bool = False,
 ) -> float:
     from collections import Counter
 
@@ -254,17 +260,20 @@ def compute_tae(
     )
     tae = separated - molecular_energy
 
-    print(f"   Element reference energies (xc={xc}, basis={basis}, device={device}):")
-    for el in ("H", "C", "N", "O"):
-        if el in atomic_energies:
-            print(
-                f"     {el}: {atomic_energies[el]:.6f} Ha   (count in molecule: {counts.get(el, 0)})"
-            )
-    print(f"   Molecular energy: {molecular_energy:.6f} Ha")
-    print(
-        f"   TAE = sum(n_i * E_atom_i) - E_mol "
-        f"= {separated:.6f} - ({molecular_energy:.6f}) = {tae:.6f} Ha"
-    )
+    if not quiet:
+        print(
+            f"   Element reference energies (xc={xc}, basis={basis}, device={device}):"
+        )
+        for el in ("H", "C", "N", "O"):
+            if el in atomic_energies:
+                print(
+                    f"     {el}: {atomic_energies[el]:.6f} Ha   (count in molecule: {counts.get(el, 0)})"
+                )
+        print(f"   Molecular energy: {molecular_energy:.6f} Ha")
+        print(
+            f"   TAE = sum(n_i * E_atom_i) - E_mol "
+            f"= {separated:.6f} - ({molecular_energy:.6f}) = {tae:.6f} Ha"
+        )
 
     return float(tae)
 
@@ -464,7 +473,9 @@ def _ensure_hip_packaged_data() -> None:
             f.write(r.read())
 
 
-def resolve_hip_checkpoint(checkpoint_path: Path | None) -> Path:
+def resolve_hip_checkpoint(
+    checkpoint_path: Path | None, *, quiet: bool = False
+) -> Path:
     """Return a usable hip checkpoint path.
 
     Resolution order:
@@ -488,17 +499,22 @@ def resolve_hip_checkpoint(checkpoint_path: Path | None) -> Path:
 
     from huggingface_hub import hf_hub_download
 
-    print(
-        f"   No --hip-checkpoint / HIP_CKPT set; fetching {HIP_HF_FILENAME} "
-        f"from huggingface.co/{HIP_HF_REPO} (cached in HF hub cache)..."
-    )
+    if not quiet:
+        print(
+            f"   No --hip-checkpoint / HIP_CKPT set; fetching {HIP_HF_FILENAME} "
+            f"from huggingface.co/{HIP_HF_REPO} (cached in HF hub cache)..."
+        )
     with _silenced_fd2():
         cached = hf_hub_download(repo_id=HIP_HF_REPO, filename=HIP_HF_FILENAME)
     return Path(cached)
 
 
 def compute_freqs(
-    xyz_path: Path, *, checkpoint_path: Path | None = None, device: str = "cpu"
+    xyz_path: Path,
+    *,
+    checkpoint_path: Path | None = None,
+    device: str = "cpu",
+    quiet: bool = False,
 ) -> list[float]:
     _ensure_hip_packaged_data()
     _apply_hip_torch_patches()
@@ -511,7 +527,7 @@ def compute_freqs(
     from hip.frequency_analysis import analyze_frequencies_np
 
     _patch_hip_config_path()
-    resolved_ckpt = resolve_hip_checkpoint(checkpoint_path)
+    resolved_ckpt = resolve_hip_checkpoint(checkpoint_path, quiet=quiet)
 
     atoms = read(str(xyz_path))
     symbols = atoms.get_chemical_symbols()
