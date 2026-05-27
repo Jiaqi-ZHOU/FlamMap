@@ -1,11 +1,11 @@
 #!/bin/bash
-# Template SLURM batch script. Copy to job.sh and edit the three knobs below.
+# Template SLURM batch script. Copy next to your data (NOT inside the FlamMap
+# repo) and edit the knobs below.
 #
-#   cp job.sh.example job.sh
-#   $EDITOR job.sh           # set INPUT_LIST / OUTPUT_DIR / JOBS / --partition
+#   cp /path/to/FlamMap/job.sh.example /scratch/my_project/job.sh
+#   $EDITOR /scratch/my_project/job.sh
+#   cd /scratch/my_project        # slurm_%j.out lands wherever you sbatch from
 #   sbatch job.sh
-#
-# `job.sh` itself is gitignored — your personal paths stay out of the repo.
 #
 #SBATCH --job-name=flammap
 #SBATCH --output=slurm_%j.out
@@ -16,18 +16,45 @@
 #SBATCH --cpus-per-task=96            # match your target node's core count
 #SBATCH --mem=64GB                    # ~4 GB per worker × JOBS; bump if OOM-killed
 #SBATCH --time=24:00:00
+# # --- uncomment to request a GPU (only useful for molecules >10 heavy atoms;
+# #     see device note below) ---
+# #SBATCH --gres=gpu:1
+# #SBATCH --partition=workstationsGPU
 
 set -euo pipefail
-cd "$(dirname "$0")"
 
-# --- edit these three ------------------------------------------------------
-INPUT_LIST=/absolute/path/to/xyzlist.txt    # one XYZ path per line; relative paths
-                                            # are resolved against this file's dir
-OUTPUT_DIR=/absolute/path/to/outputs        # per-mol JSON + _summary.csv + _failed.jsonl
-JOBS=12                                     # parallel workers; 96 cores / 8 threads = 12
+# --- edit these ------------------------------------------------------------
+FLAMMAP_DIR=/absolute/path/to/FlamMap        # FlamMap repo (where pyproject.toml + .venv live)
+INPUT_LIST=/absolute/path/to/xyzlist.txt     # one XYZ path per line; relative paths
+                                             # are resolved against this file's dir
+OUTPUT_DIR=/absolute/path/to/outputs         # per-mol JSON + _summary.csv + _failed.jsonl
+JOBS=12                                      # parallel workers; 96 cores / 8 threads = 12
 # ---------------------------------------------------------------------------
 
-uv run python run.py \
+# --- about GPU -------------------------------------------------------------
+# `--skala-device` and `--hip-device` default to "auto", which works like this:
+#
+#   if torch.cuda.is_available() AND molecule has > 10 heavy (non-H) atoms:
+#       device = cuda
+#   else:
+#       device = cpu
+#
+# So on a SLURM node without --gres=gpu:1 (the default below), CUDA is NOT
+# available and every molecule runs on CPU regardless of size. For CHON
+# molecules with ≤10 heavy atoms (typical of small-fuel datasets), even with
+# a GPU allocated, "auto" would still pick CPU because the GPU init overhead
+# (~10–15 s of cupy/gpu4pyscf setup per process) is larger than the SCF
+# speedup.
+#
+# To force GPU regardless of size:
+#   uv run ... python ... --skala-device cuda --hip-device cuda
+# and uncomment the --gres / --partition lines above.
+# ---------------------------------------------------------------------------
+
+# `--project` makes uv resolve FlamMap's pyproject.toml + .venv at $FLAMMAP_DIR
+# without changing this script's working directory — so slurm_%j.out stays
+# wherever you ran `sbatch` from, not inside the FlamMap repo.
+uv run --project "$FLAMMAP_DIR" python "$FLAMMAP_DIR/run.py" \
     --input-list "$INPUT_LIST" \
     --output-dir "$OUTPUT_DIR" \
     --jobs "$JOBS" \
