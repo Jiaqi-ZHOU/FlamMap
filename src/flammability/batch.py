@@ -175,7 +175,7 @@ def run_batch(
 
     if skip_existing:
         before = len(xyz_paths)
-        xyz_paths = [p for p in xyz_paths if not (out_dir / f"{p.stem}.json").is_file()]
+        xyz_paths = [p for p in xyz_paths if not (out_dir / "json" / f"{p.stem}.json").is_file()]
         skipped = before - len(xyz_paths)
         if skipped:
             print(f"--skip-existing: skipping {skipped} input(s) that already have output JSON.")

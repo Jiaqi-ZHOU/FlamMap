@@ -98,10 +98,20 @@ uv run python run.py --input-list inputs.txt --jobs 12 --no-plot --skip-existing
 - `--skip-existing` — skip XYZ files whose output JSON already exists in `--output-dir`. Use this to resume after a crash.
 - `--no-plot` — recommended for big batches (~5 s/molecule saved).
 
-Per-molecule outputs land in `--output-dir` named by the **XYZ filename stem** (not the chemical formula — avoids collisions between isomers with the same formula). The batch driver additionally writes:
+Per-molecule outputs land in `--output-dir`, sorted into per-type subdirs and named by the **XYZ filename stem** (not the chemical formula — avoids collisions between isomers):
 
-- `outputs/_summary.csv` — one row per successful molecule. Columns: `name, xyz, formula, tae_Ha, Hf_298K_kJ, LFL_percent, UFL_percent, n_freqs, skala_device, hip_device, elapsed_s`. Appended across runs.
-- `outputs/_failed.csv` — one row per failure (`name, error_type, error, elapsed_s`). Appended across runs. Re-run a single offending molecule with `run.py <xyz>` to get a full traceback for debugging.
+```
+<output_dir>/
+├── yaml/<name>.yaml      # Cantera mechanism with the species added
+├── dat/<name>.dat        # CAFT temperature grid
+├── pdf/<name>.pdf        # phase-diagram plot (only when --plot)
+├── json/<name>.json      # summary (TAE, freqs, Hf, LFL, UFL, ...)
+├── _summary.csv          # batch only: one row per success
+└── _failed.csv           # batch only: one row per failure
+```
+
+- `_summary.csv` — columns: `name, formula, tae_Ha, Hf_298K_kJ, LFL_percent, UFL_percent, n_freqs, skala_device, hip_device, elapsed_s`. Appended across runs.
+- `_failed.csv` — columns: `name, error_type, error, elapsed_s`. Appended across runs. Re-run a single offending molecule with `run.py <xyz>` to get a full traceback for debugging.
 
 Failures (parse errors, SCF non-convergence, imaginary modes …) are logged and the loop continues; one bad molecule never kills the batch.
 

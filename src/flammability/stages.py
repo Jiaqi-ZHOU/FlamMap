@@ -15,13 +15,27 @@ THRESHOLD_TEMPERATURE = 1600
 
 
 def _output_paths(cfg: ProjectConfig, case_name: str) -> dict[str, Path]:
+    """Per-molecule outputs go into per-type subdirs under ``cfg.output_dir``.
+
+    Layout:
+        <output_dir>/yaml/<case>.yaml
+        <output_dir>/dat/<case>.dat
+        <output_dir>/pdf/<case>.pdf   (only when --plot)
+        <output_dir>/json/<case>.json
+
+    Batch-level files (_summary.csv, _failed.csv) stay at the root so they're
+    easy to find without descending into a subdir.
+    """
     output_dir = cfg.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
+    subdirs = {kind: output_dir / kind for kind in ("yaml", "dat", "pdf", "json")}
+    for d in subdirs.values():
+        d.mkdir(parents=True, exist_ok=True)
     return {
-        "yaml": output_dir / f"{case_name}.yaml",
-        "dat": output_dir / f"{case_name}.dat",
-        "pdf": output_dir / f"{case_name}.pdf",
-        "json": output_dir / f"{case_name}.json",
+        "yaml": subdirs["yaml"] / f"{case_name}.yaml",
+        "dat": subdirs["dat"] / f"{case_name}.dat",
+        "pdf": subdirs["pdf"] / f"{case_name}.pdf",
+        "json": subdirs["json"] / f"{case_name}.json",
     }
 
 
@@ -93,7 +107,7 @@ def run_pipeline(
         geometry_file=geometry_file,
         ref_yaml=cfg.ref_yaml,
         prod_yaml=cfg.prod_yaml,
-        output_dir=cfg.output_dir,
+        output_dir=paths["yaml"].parent,
         polys_temps=cfg.polys_temps,
         bond_enthalpy_json=cfg.bond_enthalpy_json,
         freqs=freqs,
@@ -119,7 +133,7 @@ def run_pipeline(
         )
     _fuel, ok, msg = compute_ternary_phase_diagram(
         paths["yaml"],
-        cfg.output_dir,
+        paths["dat"].parent,
         n_points=cfg.npoints,
     )
     if not ok:
