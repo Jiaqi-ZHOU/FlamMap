@@ -101,7 +101,7 @@ uv run python run.py --input-list inputs.txt --jobs 12 --no-plot --skip-existing
 Per-molecule outputs land in `--output-dir` named by the **XYZ filename stem** (not the chemical formula — avoids collisions between isomers with the same formula). The batch driver additionally writes:
 
 - `outputs/_summary.csv` — one row per successful molecule. Columns: `name, xyz, formula, tae_Ha, Hf_298K_kJ, LFL_percent, UFL_percent, n_freqs, skala_device, hip_device, elapsed_s`. Appended across runs.
-- `outputs/_failed.jsonl` — one JSON object per failure (`name, xyz, error_type, error, traceback`). Appended across runs.
+- `outputs/_failed.csv` — one row per failure (`name, error_type, error, elapsed_s`). Appended across runs. Re-run a single offending molecule with `run.py <xyz>` to get a full traceback for debugging.
 
 Failures (parse errors, SCF non-convergence, imaginary modes …) are logged and the loop continues; one bad molecule never kills the batch.
 

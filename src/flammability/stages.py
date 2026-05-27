@@ -34,11 +34,10 @@ def _resolve_tae_and_freqs(
         skala_device = resolve_device_for_xyz(cfg.skala_device, cfg.xyz_geom)
         hip_device = resolve_device_for_xyz(cfg.hip_device, cfg.xyz_geom)
 
+        # Order matters: hip Hessian (~10–30 s) runs first so molecules with
+        # imaginary modes (non-minimum geometries) fail fast without paying for
+        # the much more expensive skala SCFs (~30–180 s/molecule).
         if not quiet:
-            print(f"ML mode: computing TAE via skala (device={skala_device})...")
-        tae = compute_tae(cfg.xyz_geom, device=skala_device, quiet=quiet)
-        if not quiet:
-            print(f"   TAE = {tae:.6f} Ha")
             print(
                 f"ML mode: computing vibrational frequencies via hip (device={hip_device})..."
             )
@@ -50,10 +49,15 @@ def _resolve_tae_and_freqs(
         )
         if not quiet:
             print(f"   {len(freqs)} vibrational frequencies (cm^-1):")
-            # 6 per line keeps lines under ~60 cols and is easy to scan
             for i in range(0, len(freqs), 6):
                 chunk = "  ".join(f"{f:8.2f}" for f in freqs[i : i + 6])
                 print(f"     {chunk}")
+
+        if not quiet:
+            print(f"ML mode: computing TAE via skala (device={skala_device})...")
+        tae = compute_tae(cfg.xyz_geom, device=skala_device, quiet=quiet)
+        if not quiet:
+            print(f"   TAE = {tae:.6f} Ha")
         return tae, freqs, "ml (hip)"
 
     return cfg.tae, cfg.freqs, "case YAML"

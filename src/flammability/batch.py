@@ -6,7 +6,9 @@ formula, which can collide across isomers in a batch). The batch driver
 additionally writes:
 
 - ``output_dir/_summary.csv`` — one row per successful molecule.
-- ``output_dir/_failed.jsonl`` — one JSON object per failed molecule.
+- ``output_dir/_failed.csv`` — one row per failed molecule (name, error_type,
+  error, elapsed_s). Use single-molecule mode (`run.py <one.xyz>`) to get a
+  full traceback when debugging a specific failure.
 
 A failure is logged and the loop continues; the whole batch never aborts
 because of a single bad input. Re-running with ``--skip-existing`` resumes
@@ -16,11 +18,9 @@ from wherever the previous attempt died.
 from __future__ import annotations
 
 import csv
-import json
 import multiprocessing as mp
 import os
 import time
-import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
@@ -37,6 +37,13 @@ _SUMMARY_FIELDS = (
     "n_freqs",
     "skala_device",
     "hip_device",
+    "elapsed_s",
+)
+
+_FAILED_FIELDS = (
+    "name",
+    "error_type",
+    "error",
     "elapsed_s",
 )
 
@@ -124,14 +131,14 @@ def _run_one(
             "elapsed_s": round(elapsed, 3),
         }
     except Exception as exc:
+        # Keep one-line error suitable for CSV; full traceback is reproducible
+        # by re-running the offending molecule with `run.py <xyz>` standalone.
         return {
             "status": "fail",
             "name": name,
-            "xyz": str(xyz_path),
             "error_type": type(exc).__name__,
-            "error": str(exc),
-            "traceback": traceback.format_exc(),
-            "elapsed_s": round(time.perf_counter() - start, 2),
+            "error": " ".join(str(exc).split()),  # collapse internal newlines/whitespace
+            "elapsed_s": round(time.perf_counter() - start, 3),
         }
 
 
@@ -191,9 +198,9 @@ def run_batch(
     )
 
     summary_csv = out_dir / "_summary.csv"
-    failed_jsonl = out_dir / "_failed.jsonl"
+    failed_csv = out_dir / "_failed.csv"
     new_summary = not summary_csv.is_file()
-    new_failed = not failed_jsonl.is_file()
+    new_failed = not failed_csv.is_file()
 
     one_kwargs = dict(
         mode=mode,
@@ -209,20 +216,24 @@ def run_batch(
     n_ok = 0
     n_fail = 0
 
-    with summary_csv.open("a", newline="", encoding="utf-8") as sf, failed_jsonl.open(
-        "a", encoding="utf-8"
+    with summary_csv.open("a", newline="", encoding="utf-8") as sf, failed_csv.open(
+        "a", newline="", encoding="utf-8"
     ) as ff:
-        writer = csv.DictWriter(sf, fieldnames=_SUMMARY_FIELDS, extrasaction="ignore")
+        sum_writer = csv.DictWriter(sf, fieldnames=_SUMMARY_FIELDS, extrasaction="ignore")
+        fail_writer = csv.DictWriter(ff, fieldnames=_FAILED_FIELDS, extrasaction="ignore")
         if new_summary:
-            writer.writeheader()
+            sum_writer.writeheader()
             sf.flush()
+        if new_failed:
+            fail_writer.writeheader()
+            ff.flush()
 
         if jobs <= 1:
             # Single-process loop — amortises startup across all molecules in
             # one Python interpreter. Best when jobs=1 (saves spawn overhead).
             for i, xyz in enumerate(xyz_paths, 1):
                 result = _run_one(xyz=str(xyz), **one_kwargs)
-                _record(result, writer, ff, i, n_total)
+                _record(result, sum_writer, fail_writer, i, n_total)
                 if result["status"] == "ok":
                     n_ok += 1
                 else:
@@ -244,7 +255,7 @@ def run_batch(
                 }
                 for i, fut in enumerate(as_completed(futures), 1):
                     result = fut.result()
-                    _record(result, writer, ff, i, n_total)
+                    _record(result, sum_writer, fail_writer, i, n_total)
                     if result["status"] == "ok":
                         n_ok += 1
                     else:
@@ -258,19 +269,25 @@ def run_batch(
         f"Summary: {summary_csv}"
     )
     if n_fail:
-        print(f"Failures logged to: {failed_jsonl}")
+        print(f"Failures logged to: {failed_csv}")
 
 
 _CSV_FLOAT_FIELDS_3DP = ("tae_Ha", "Hf_298K_kJ", "LFL_percent", "UFL_percent", "elapsed_s")
 
 
-def _record(result: dict, writer: csv.DictWriter, failed_fh, i: int, total: int) -> None:
+def _record(
+    result: dict,
+    sum_writer: csv.DictWriter,
+    fail_writer: csv.DictWriter,
+    i: int,
+    total: int,
+) -> None:
     if result["status"] == "ok":
         row = {
             k: (f"{v:.3f}" if k in _CSV_FLOAT_FIELDS_3DP and isinstance(v, float) else v)
             for k, v in result.items()
         }
-        writer.writerow(row)
+        sum_writer.writerow(row)
         print(
             f"[{i}/{total}] {result['name']:24s} OK  "
             f"Hf={result['Hf_298K_kJ']:>8.2f} kJ/mol  "
@@ -278,7 +295,11 @@ def _record(result: dict, writer: csv.DictWriter, failed_fh, i: int, total: int)
             f"({result['elapsed_s']:.1f}s)"
         )
     else:
-        failed_fh.write(json.dumps(result) + "\n")
+        row = {
+            k: (f"{v:.3f}" if k == "elapsed_s" and isinstance(v, float) else v)
+            for k, v in result.items()
+        }
+        fail_writer.writerow(row)
         print(
             f"[{i}/{total}] {result['name']:24s} FAIL  "
             f"{result['error_type']}: {result['error']}  ({result['elapsed_s']:.1f}s)"

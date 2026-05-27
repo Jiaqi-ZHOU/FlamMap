@@ -519,8 +519,6 @@ def compute_freqs(
     _ensure_hip_packaged_data()
     _apply_hip_torch_patches()
 
-    import sys
-
     import numpy as np
     from ase.io import read
     from hip.equiformer_torch_calculator import EquiformerTorchCalculator
@@ -549,13 +547,8 @@ def compute_freqs(
     negative = vibrational[vibrational < 0]
     if negative.size > 0:
         formatted = ", ".join(f"{f:.2f}" for f in negative)
-        print(
-            f"WARNING: hip predicted {negative.size} imaginary mode(s) at {formatted} cm^-1 "
-            f"for {xyz_path}; geometry is not a minimum.",
-            file=sys.stderr,
-            flush=True,
-        )
         raise ValueError(
-            f"hip predicted negative vibrational frequencies for {xyz_path}; aborting."
+            f"hip predicted {negative.size} imaginary mode(s) at [{formatted}] cm^-1 "
+            f"(geometry is not a minimum)"
         )
     return [float(x) for x in vibrational]
