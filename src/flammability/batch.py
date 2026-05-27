@@ -190,11 +190,19 @@ def run_batch(
         return
 
     n_total = len(xyz_paths)
-    nproc = os.cpu_count() or 1
+    # Prefer the CPU set the OS scheduler assigned to this process — under
+    # SLURM that's exactly what `--cpus-per-task` allocated, which is what we
+    # want to share across workers. `os.cpu_count()` would return the whole
+    # node's logical CPUs, double-counting hyperthreads and ignoring cgroup
+    # limits, leading to oversubscription on shared nodes.
+    try:
+        nproc = len(os.sched_getaffinity(0))
+    except AttributeError:  # non-Linux fallback
+        nproc = os.cpu_count() or 1
     threads_per_worker = max(1, nproc // max(1, jobs))
     print(
         f"Batch: {n_total} molecules, {jobs} worker(s), "
-        f"{threads_per_worker} thread(s)/worker, output={out_dir}"
+        f"{threads_per_worker} thread(s)/worker (nproc={nproc}), output={out_dir}"
     )
 
     summary_csv = out_dir / "_summary.csv"

@@ -13,7 +13,13 @@
 #SBATCH --partition=PARTITION_NAME    # e.g. workstations, jobs, compute — check `sinfo`
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=96            # match your target node's core count
+#SBATCH --cpus-per-task=96            # number of PHYSICAL cores you want (see hint below)
+#SBATCH --hint=nomultithread          # bind to physical cores only, skip HT siblings.
+                                      # Dense BLAS / pyscf / torch don't benefit from
+                                      # HT (two threads share one core's FMA units +
+                                      # L1d cache) — for SCF+NN workloads HT often
+                                      # *hurts* throughput. Remove this line if you
+                                      # want HT enabled.
 #SBATCH --mem=64GB                    # ~4 GB per worker × JOBS; bump if OOM-killed
 #SBATCH --time=24:00:00
 # # --- uncomment to request a GPU (only useful for molecules >10 heavy atoms;
