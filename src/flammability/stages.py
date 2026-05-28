@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 from .caft import compute_ternary_phase_diagram
@@ -83,6 +84,7 @@ def run_pipeline(
     quiet: bool = False,
     case_name_override: str | None = None,
 ) -> dict:
+    t0 = time.perf_counter()
     geometry_file = cfg.xyz_geom
     formula = formula_from_atoms(extract_atoms(geometry_file))
     case_name = case_name_override or infer_case_name(formula)
@@ -177,6 +179,7 @@ def run_pipeline(
         "diagram_pdf": diagram_pdf,
         "yaml_file": str(paths["yaml"]),
         "dat_file": str(paths["dat"]),
+        "elapsed_s": round(time.perf_counter() - t0, 3),
     }
     with open(paths["json"], "w", encoding="utf-8") as handle:
         json.dump(summary, handle, indent=2)

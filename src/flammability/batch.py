@@ -318,8 +318,9 @@ def collect_summary(*, input_list: str, output_dir: str | None) -> None:
     Use after a HyperQueue (or other external) batch run that produced
     ``<output_dir>/json/<name>.json`` files but no aggregated CSV. Molecules
     listed in ``input_list`` but missing a JSON are treated as failures.
-    The ``elapsed_s`` column is left blank because external runners don't
-    feed back per-task timing — check HQ's task report for that.
+    The ``elapsed_s`` column is the pipeline wall time stored inside each
+    JSON (added by ``run_pipeline``); failures have no JSON so it stays
+    blank — check HQ's task report for those.
     """
     out_dir = (
         Path(output_dir).expanduser().resolve()
@@ -366,6 +367,7 @@ def collect_summary(*, input_list: str, output_dir: str | None) -> None:
             try:
                 with json_path.open(encoding="utf-8") as fh:
                     data = json.load(fh)
+                elapsed = data.get("elapsed_s")
                 sum_writer.writerow({
                     "stem": stem,
                     "formula": data["formula"],
@@ -374,7 +376,7 @@ def collect_summary(*, input_list: str, output_dir: str | None) -> None:
                     "LFL_percent": f"{float(data['LFL_percent']):.3f}",
                     "UFL_percent": f"{float(data['UFL_percent']):.3f}",
                     "n_freqs": len(data.get("freqs") or []),
-                    "elapsed_s": "",
+                    "elapsed_s": f"{float(elapsed):.3f}" if elapsed is not None else "",
                 })
                 n_ok += 1
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
