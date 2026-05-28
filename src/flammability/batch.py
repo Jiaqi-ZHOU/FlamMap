@@ -278,7 +278,23 @@ def run_batch(
         print(f"Failures logged to: {failed_csv}")
 
 
-_CSV_FLOAT_FIELDS_3DP = ("tae_Ha", "Hf_298K_kJ", "LFL_percent", "UFL_percent", "elapsed_s")
+# tae_Ha is on the order of 1 Ha (a few-eV-per-atom diff of two ~1000-eV
+# absolute SCF energies), so 8 dp keeps ~mHa precision. Everything else
+# (kJ/mol, percent, seconds) is happy with 2 dp.
+_CSV_FLOAT_PRECISION = {
+    "tae_Ha": 8,
+    "Hf_298K_kJ": 2,
+    "LFL_percent": 2,
+    "UFL_percent": 2,
+    "elapsed_s": 2,
+}
+
+
+def _fmt_csv(k: str, v: object) -> object:
+    p = _CSV_FLOAT_PRECISION.get(k)
+    if p is not None and isinstance(v, float):
+        return f"{v:.{p}f}"
+    return v
 
 
 def _record(
@@ -289,10 +305,7 @@ def _record(
     total: int,
 ) -> None:
     if result["status"] == "ok":
-        row = {
-            k: (f"{v:.3f}" if k in _CSV_FLOAT_FIELDS_3DP and isinstance(v, float) else v)
-            for k, v in result.items()
-        }
+        row = {k: _fmt_csv(k, v) for k, v in result.items()}
         sum_writer.writerow(row)
         print(
             f"[{i}/{total}] {result['name']:24s} OK  "
@@ -301,10 +314,7 @@ def _record(
             f"({result['elapsed_s']:.1f}s)"
         )
     else:
-        row = {
-            k: (f"{v:.3f}" if k == "elapsed_s" and isinstance(v, float) else v)
-            for k, v in result.items()
-        }
+        row = {k: _fmt_csv(k, v) for k, v in result.items()}
         fail_writer.writerow(row)
         print(
             f"[{i}/{total}] {result['name']:24s} FAIL  "
@@ -371,12 +381,12 @@ def collect_summary(*, input_list: str, output_dir: str | None) -> None:
                 sum_writer.writerow({
                     "stem": stem,
                     "formula": data["formula"],
-                    "tae_Ha": f"{float(data['tae']):.3f}",
-                    "Hf_298K_kJ": f"{float(data['Hf_298K_kJ']):.3f}",
-                    "LFL_percent": f"{float(data['LFL_percent']):.3f}",
-                    "UFL_percent": f"{float(data['UFL_percent']):.3f}",
+                    "tae_Ha": _fmt_csv("tae_Ha", float(data["tae"])),
+                    "Hf_298K_kJ": _fmt_csv("Hf_298K_kJ", float(data["Hf_298K_kJ"])),
+                    "LFL_percent": _fmt_csv("LFL_percent", float(data["LFL_percent"])),
+                    "UFL_percent": _fmt_csv("UFL_percent", float(data["UFL_percent"])),
                     "n_freqs": len(data.get("freqs") or []),
-                    "elapsed_s": f"{float(elapsed):.3f}" if elapsed is not None else "",
+                    "elapsed_s": _fmt_csv("elapsed_s", float(elapsed)) if elapsed is not None else "",
                 })
                 n_ok += 1
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
