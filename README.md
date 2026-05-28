@@ -89,9 +89,9 @@ All frequencies must be positive. The count must match the geometry: `3N-5` for 
 
 `auto` reads the XYZ and picks `cuda` if the molecule has more than 10 heavy (non-H) atoms and CUDA is actually available; otherwise `cpu`. Small molecules go faster on CPU because of the ~10-15 s cupy/gpu4pyscf init cost. Override with `--skala-device cuda` etc. if you want a specific device.
 
-Per-molecule outputs use the same layout in single and batch modes (`yaml/<stem>.yaml`, `dat/<stem>.dat`, `pdf/<stem>.pdf`, `json/<stem>.json`) — see the tree in [Batch mode](#batch-mode-12k-molecules-in-2-h-on-a-96-core-box) below. `SUMMARY.csv` / `FAILED.csv` are batch-only.
+Per-molecule outputs use the same layout in single and batch modes (`yaml/<stem>.yaml`, `dat/<stem>.dat`, `pdf/<stem>.pdf`, `json/<stem>.json`) — see the tree in [Batch mode](#batch-mode) below. `SUMMARY.csv` / `FAILED.csv` are batch-only.
 
-### Batch mode (12k molecules in ~2 h on a 96-core box)
+### Batch mode
 
 Two paths, pick by scale: `--input-list` (below) for single-node runs up to a few hundred molecules — one Python process per worker amortizes the ~5–15 s torch/hip/skala import once across many molecules. For multi-node runs or thousands of molecules, jump to [HyperQueue](#multi-node-batches-via-hyperqueue) — dynamic load balancing across nodes outweighs the per-task interpreter startup cost.
 
