@@ -325,12 +325,18 @@ def _record(
 def collect_summary(*, input_list: str, output_dir: str | None) -> None:
     """Rebuild ``SUMMARY.csv`` and ``FAILED.csv`` from per-molecule JSONs.
 
-    Use after a HyperQueue (or other external) batch run that produced
-    ``<output_dir>/json/<name>.json`` files but no aggregated CSV. Molecules
-    listed in ``input_list`` but missing a JSON are treated as failures.
-    The ``elapsed_s`` column is the pipeline wall time stored inside each
-    JSON (added by ``run_pipeline``); failures have no JSON so it stays
-    blank — check HQ's task report for those.
+    Use after a HyperQueue (or other external) batch run. For each xyz in
+    ``input_list``, look for one of two sibling files in ``json/``:
+
+    - ``<stem>.json`` — success, written by ``run_pipeline``. Row goes to
+      SUMMARY.csv.
+    - ``<stem>.failed.json`` — failure, written by the single-mode CLI when
+      the pipeline raised. Carries ``error_type`` / ``error`` / ``elapsed_s``
+      from the actual exception. Row goes to FAILED.csv with those values.
+
+    If neither file exists the molecule never produced a verdict (HQ didn't
+    schedule it, worker died, etc.) — emit a ``MissingOutput`` row with no
+    timing and tell the user to check HQ's task report.
     """
     out_dir = (
         Path(output_dir).expanduser().resolve()
@@ -365,38 +371,65 @@ def collect_summary(*, input_list: str, output_dir: str | None) -> None:
             name = p.stem
             stem = name.split("_")[-1]
             json_path = json_dir / f"{name}.json"
-            if not json_path.is_file():
-                fail_writer.writerow({
-                    "stem": stem,
-                    "error_type": "MissingOutput",
-                    "error": "no json/<name>.json (task failed or never ran — check HQ logs)",
-                    "elapsed_s": "",
-                })
-                n_fail += 1
-                continue
-            try:
-                with json_path.open(encoding="utf-8") as fh:
-                    data = json.load(fh)
-                elapsed = data.get("elapsed_s")
-                sum_writer.writerow({
-                    "stem": stem,
-                    "formula": data["formula"],
-                    "tae_Ha": _fmt_csv("tae_Ha", float(data["tae"])),
-                    "Hf_298K_kJ": _fmt_csv("Hf_298K_kJ", float(data["Hf_298K_kJ"])),
-                    "LFL_percent": _fmt_csv("LFL_percent", float(data["LFL_percent"])),
-                    "UFL_percent": _fmt_csv("UFL_percent", float(data["UFL_percent"])),
-                    "n_freqs": len(data.get("freqs") or []),
-                    "elapsed_s": _fmt_csv("elapsed_s", float(elapsed)) if elapsed is not None else "",
-                })
-                n_ok += 1
-            except (json.JSONDecodeError, KeyError, ValueError) as exc:
-                fail_writer.writerow({
-                    "stem": stem,
-                    "error_type": type(exc).__name__,
-                    "error": " ".join(str(exc).split()) or "malformed JSON",
-                    "elapsed_s": "",
-                })
-                n_fail += 1
+            failed_path = json_dir / f"{name}.failed.json"
+
+            if json_path.is_file():
+                try:
+                    with json_path.open(encoding="utf-8") as fh:
+                        data = json.load(fh)
+                    elapsed = data.get("elapsed_s")
+                    sum_writer.writerow({
+                        "stem": stem,
+                        "formula": data["formula"],
+                        "tae_Ha": _fmt_csv("tae_Ha", float(data["tae"])),
+                        "Hf_298K_kJ": _fmt_csv("Hf_298K_kJ", float(data["Hf_298K_kJ"])),
+                        "LFL_percent": _fmt_csv("LFL_percent", float(data["LFL_percent"])),
+                        "UFL_percent": _fmt_csv("UFL_percent", float(data["UFL_percent"])),
+                        "n_freqs": len(data.get("freqs") or []),
+                        "elapsed_s": _fmt_csv("elapsed_s", float(elapsed)) if elapsed is not None else "",
+                    })
+                    n_ok += 1
+                    continue
+                except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                    fail_writer.writerow({
+                        "stem": stem,
+                        "error_type": type(exc).__name__,
+                        "error": " ".join(str(exc).split()) or "malformed JSON",
+                        "elapsed_s": "",
+                    })
+                    n_fail += 1
+                    continue
+
+            if failed_path.is_file():
+                try:
+                    with failed_path.open(encoding="utf-8") as fh:
+                        data = json.load(fh)
+                    elapsed = data.get("elapsed_s")
+                    fail_writer.writerow({
+                        "stem": stem,
+                        "error_type": data.get("error_type") or "UnknownError",
+                        "error": data.get("error") or "(no error message)",
+                        "elapsed_s": _fmt_csv("elapsed_s", float(elapsed)) if elapsed is not None else "",
+                    })
+                    n_fail += 1
+                    continue
+                except (json.JSONDecodeError, ValueError) as exc:
+                    fail_writer.writerow({
+                        "stem": stem,
+                        "error_type": type(exc).__name__,
+                        "error": f"malformed failed.json: {' '.join(str(exc).split())}",
+                        "elapsed_s": "",
+                    })
+                    n_fail += 1
+                    continue
+
+            fail_writer.writerow({
+                "stem": stem,
+                "error_type": "MissingOutput",
+                "error": "no json/<stem>.{json,failed.json} — HQ never ran the task; check `hq job info`",
+                "elapsed_s": "",
+            })
+            n_fail += 1
 
     print(
         f"Collected {len(xyz_paths)} molecules from {input_list_path.name}: "

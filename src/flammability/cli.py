@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import json
+import time
+import traceback
 from pathlib import Path
 
 from .config import build_config, validate_config
@@ -146,16 +149,47 @@ def main() -> None:
         print("Inputs are valid.")
         return
 
-    # --skip-existing in single mode is the HyperQueue retry guard: if a previous
-    # task already wrote the JSON for this molecule, exit 0 immediately so HQ
-    # marks the task done. The output path matches batch mode (json/<stem>.json).
-    if args.skip_existing:
-        json_path = cfg.output_dir / "json" / f"{Path(args.xyz).stem}.json"
-        if json_path.is_file():
-            print(f"--skip-existing: {json_path} already exists, skipping.")
-            return
+    stem = Path(args.xyz).stem
+    json_dir = cfg.output_dir / "json"
+    ok_json = json_dir / f"{stem}.json"
+    failed_json = json_dir / f"{stem}.failed.json"
 
-    run_pipeline(cfg, case_name_override=Path(args.xyz).stem)
+    # --skip-existing in single mode is the HyperQueue retry guard: any prior
+    # verdict (success OR recorded failure) counts as "already attempted" and
+    # exits 0 so HQ marks the task done. To redo failures, `rm json/*.failed.json`
+    # before resubmitting.
+    if args.skip_existing:
+        for p in (ok_json, failed_json):
+            if p.is_file():
+                print(f"--skip-existing: {p} already exists, skipping.")
+                return
+
+    # Wrap the pipeline so HQ-mode failures leave a structured record next to
+    # the success JSONs. Without this, an exception in run_pipeline only ends
+    # up in HQ's per-task stderr — and `hq_logs/job-NNN.stderr` has no naming
+    # link back to the xyz stem, making collect_summary's FAILED.csv useless.
+    json_dir.mkdir(parents=True, exist_ok=True)
+    t0 = time.perf_counter()
+    try:
+        run_pipeline(cfg, case_name_override=stem)
+    except Exception as exc:
+        failed_json.write_text(
+            json.dumps(
+                {
+                    "status": "fail",
+                    "error_type": type(exc).__name__,
+                    "error": " ".join(str(exc).split()),
+                    "traceback": traceback.format_exc(),
+                    "xyz_geom": str(cfg.xyz_geom),
+                    "elapsed_s": round(time.perf_counter() - t0, 3),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        # Re-raise so the traceback still hits stderr and HQ records the task
+        # as failed (a silent exit 0 would make HQ think it succeeded).
+        raise
 
 
 if __name__ == "__main__":

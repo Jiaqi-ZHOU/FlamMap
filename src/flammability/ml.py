@@ -506,6 +506,18 @@ def resolve_hip_checkpoint(
     return Path(cached)
 
 
+class ImaginaryModeError(ValueError):
+    """hip predicted at least one imaginary vibrational mode.
+
+    Raised by ``compute_freqs`` when the Hessian eigenvalues yield negative
+    wavenumbers — i.e. the input geometry is a saddle point or otherwise
+    not a true local minimum. Subclasses ValueError so existing
+    ``except ValueError`` clauses still catch it; the dedicated class lets
+    downstream consumers (collect_summary, FAILED.csv readers) count
+    imaginary-mode failures separately from other validation errors.
+    """
+
+
 def compute_freqs(
     xyz_path: Path,
     *,
@@ -544,7 +556,7 @@ def compute_freqs(
     negative = vibrational[vibrational < 0]
     if negative.size > 0:
         formatted = ", ".join(f"{f:.2f}" for f in negative)
-        raise ValueError(
+        raise ImaginaryModeError(
             f"hip predicted {negative.size} imaginary mode(s) at [{formatted}] cm^-1 "
             f"(geometry is not a minimum)"
         )
