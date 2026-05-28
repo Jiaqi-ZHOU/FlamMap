@@ -61,6 +61,8 @@ ML mode needs the hip checkpoint and the installed `skala` package. Both are res
 
 ### AB mode
 
+"AB" stands for *ab initio*: this mode is the escape hatch from the ML predictions. Compute TAE and harmonic frequencies yourself with a high-level ab initio method (e.g. CCSD(T)/CBS, MP2, or a hybrid DFT — whatever benchmark you trust for the molecule at hand), drop them into a small YAML, and the rest of the pipeline (thermochemistry → CAFT grid → LFL/UFL) runs unchanged. Use it when you want reference numbers instead of skala+hip, or to compare ML against ab initio on the same downstream code path.
+
 Provide TAE and frequencies via a small YAML alongside the XYZ:
 
 ```bash
