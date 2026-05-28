@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from .config import build_config, validate_config
 from .stages import run_pipeline
@@ -149,14 +150,12 @@ def main() -> None:
     # task already wrote the JSON for this molecule, exit 0 immediately so HQ
     # marks the task done. The output path matches batch mode (json/<stem>.json).
     if args.skip_existing:
-        from pathlib import Path
-
         json_path = cfg.output_dir / "json" / f"{Path(args.xyz).stem}.json"
         if json_path.is_file():
             print(f"--skip-existing: {json_path} already exists, skipping.")
             return
 
-    run_pipeline(cfg)
+    run_pipeline(cfg, case_name_override=Path(args.xyz).stem)
 
 
 if __name__ == "__main__":
