@@ -61,7 +61,7 @@ ML mode needs the hip checkpoint and the installed `skala` package. Both are res
 
 ### AB mode
 
-"AB" stands for *ab initio*: this mode is the escape hatch from the ML predictions. Compute TAE and harmonic frequencies yourself with a high-level ab initio method (e.g. CCSD(T)/CBS, MP2, or a hybrid DFT — whatever benchmark you trust for the molecule at hand), drop them into a small YAML, and the rest of the pipeline (thermochemistry → CAFT grid → LFL/UFL) runs unchanged. Use it when you want reference numbers instead of skala+hip, or to compare ML against ab initio on the same downstream code path.
+"AB" stands for *ab initio*: this mode is the escape hatch from the ML predictions. Compute TAE and harmonic frequencies yourself with a high-level ab initio method (e.g. CCSD(T)/CBS, MP2, or a hybrid DFT), drop them into a small YAML, and the rest of the pipeline (thermochemistry → CAFT grid → LFL/UFL) runs unchanged. Use it when you want reference numbers instead of skala+hip, or to compare ML against ab initio on the same downstream code path.
 
 Provide TAE and frequencies via a small YAML alongside the XYZ:
 
@@ -92,6 +92,8 @@ All frequencies must be positive. The count must match the geometry: `3N-5` for 
 Per-molecule outputs use the same layout in single and batch modes (`yaml/<stem>.yaml`, `dat/<stem>.dat`, `pdf/<stem>.pdf`, `json/<stem>.json`) — see the tree in [Batch mode](#batch-mode-12k-molecules-in-2-h-on-a-96-core-box) below. `SUMMARY.csv` / `FAILED.csv` are batch-only.
 
 ### Batch mode (12k molecules in ~2 h on a 96-core box)
+
+Two paths, pick by scale: `--input-list` (below) for single-node runs up to a few hundred molecules — one Python process per worker amortizes the ~5–15 s torch/hip/skala import once across many molecules. For multi-node runs or thousands of molecules, jump to [HyperQueue](#multi-node-batches-via-hyperqueue) — dynamic load balancing across nodes outweighs the per-task interpreter startup cost.
 
 ```bash
 ls molecules/*.xyz > inputs.txt
