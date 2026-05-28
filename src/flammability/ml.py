@@ -501,8 +501,9 @@ def resolve_hip_checkpoint(
 
     if not quiet:
         print(
-            f"   No --hip-checkpoint / HIP_CKPT set; fetching {HIP_HF_FILENAME} "
-            f"from huggingface.co/{HIP_HF_REPO} (cached in HF hub cache)..."
+            f"   Fetching default hip checkpoint {HIP_HF_FILENAME} from "
+            f"huggingface.co/{HIP_HF_REPO} (cached in HF hub cache; "
+            f"override with --hip-checkpoint or HIP_CKPT)..."
         )
     with _silenced_fd2():
         cached = hf_hub_download(repo_id=HIP_HF_REPO, filename=HIP_HF_FILENAME)
