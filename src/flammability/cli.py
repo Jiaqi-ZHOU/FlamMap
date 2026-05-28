@@ -40,9 +40,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--collect-summary",
         metavar="XYZ_LIST",
         default=None,
-        help="Post-processing: scan <output_dir>/json/ and rebuild _summary.csv from the "
+        help="Post-processing: scan <output_dir>/json/ and rebuild SUMMARY.csv from the "
         "per-molecule JSONs. Molecules listed in XYZ_LIST but missing a JSON are written "
-        "to _failed.csv. Use this after a HyperQueue per-molecule batch finishes.",
+        "to FAILED.csv. Use this after a HyperQueue per-molecule batch finishes.",
     )
     parser.add_argument(
         "--mode",

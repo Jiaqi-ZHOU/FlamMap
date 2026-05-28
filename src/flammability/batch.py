@@ -5,8 +5,8 @@ land in ``output_dir`` named by the xyz filename stem (not the chemical
 formula, which can collide across isomers in a batch). The batch driver
 additionally writes:
 
-- ``output_dir/_summary.csv`` — one row per successful molecule.
-- ``output_dir/_failed.csv`` — one row per failed molecule (stem, error_type,
+- ``output_dir/SUMMARY.csv`` — one row per successful molecule.
+- ``output_dir/FAILED.csv`` — one row per failed molecule (stem, error_type,
   error, elapsed_s). Use single-molecule mode (`run.py <one.xyz>`) to get a
   full traceback when debugging a specific failure.
 
@@ -203,8 +203,8 @@ def run_batch(
         f"{threads_per_worker} thread(s)/worker (nproc={nproc}), output={out_dir}"
     )
 
-    summary_csv = out_dir / "_summary.csv"
-    failed_csv = out_dir / "_failed.csv"
+    summary_csv = out_dir / "SUMMARY.csv"
+    failed_csv = out_dir / "FAILED.csv"
     new_summary = not summary_csv.is_file()
     new_failed = not failed_csv.is_file()
 
@@ -313,7 +313,7 @@ def _record(
 
 
 def collect_summary(*, input_list: str, output_dir: str | None) -> None:
-    """Rebuild ``_summary.csv`` and ``_failed.csv`` from per-molecule JSONs.
+    """Rebuild ``SUMMARY.csv`` and ``FAILED.csv`` from per-molecule JSONs.
 
     Use after a HyperQueue (or other external) batch run that produced
     ``<output_dir>/json/<name>.json`` files but no aggregated CSV. Molecules
@@ -337,8 +337,8 @@ def collect_summary(*, input_list: str, output_dir: str | None) -> None:
         raise SystemExit(1)
 
     xyz_paths = _read_input_list(input_list_path)
-    summary_csv = out_dir / "_summary.csv"
-    failed_csv = out_dir / "_failed.csv"
+    summary_csv = out_dir / "SUMMARY.csv"
+    failed_csv = out_dir / "FAILED.csv"
 
     n_ok = 0
     n_fail = 0

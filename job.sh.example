@@ -33,7 +33,7 @@ set -euo pipefail
 FLAMMAP_DIR=/absolute/path/to/FlamMap        # FlamMap repo (where pyproject.toml + .venv live)
 INPUT_LIST=/absolute/path/to/xyzlist.txt     # one XYZ path per line; relative paths
                                              # are resolved against this file's dir
-OUTPUT_DIR=/absolute/path/to/outputs         # per-mol JSON + _summary.csv + _failed.jsonl
+OUTPUT_DIR=/absolute/path/to/outputs         # per-mol JSON + SUMMARY.csv + FAILED.csv
 JOBS=12                                      # parallel workers; 96 cores / 8 threads = 12
 # ---------------------------------------------------------------------------
 

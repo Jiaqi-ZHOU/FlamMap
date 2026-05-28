@@ -9,7 +9,7 @@
 #   sbatch my_hq_worker.sh           # start server + worker(s)
 #   ./job_hq.sh                      # submit one task per .xyz
 #   hq job wait last                 # block until all tasks finish
-#   ./job_hq.sh collect              # rebuild _summary.csv / _failed.csv
+#   ./job_hq.sh collect              # rebuild SUMMARY.csv / FAILED.csv
 
 set -euo pipefail
 
@@ -54,4 +54,4 @@ echo "Submitted $(ls "$INPUT_DIR"/*.xyz | wc -l) tasks. Useful commands:"
 echo "  hq job list                  # see jobs"
 echo "  hq job info last             # detail for the batch just submitted"
 echo "  hq job wait last             # block until all tasks finish"
-echo "  $0 collect                   # rebuild _summary.csv after wait"
+echo "  $0 collect                   # rebuild SUMMARY.csv after wait"

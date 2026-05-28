@@ -106,12 +106,12 @@ Per-molecule outputs land in `--output-dir`, sorted into per-type subdirs and na
 ├── dat/<name>.dat        # CAFT temperature grid
 ├── pdf/<name>.pdf        # phase-diagram plot (only when --plot)
 ├── json/<name>.json      # summary (TAE, freqs, Hf, LFL, UFL, ...)
-├── _summary.csv          # batch only: one row per success
-└── _failed.csv           # batch only: one row per failure
+├── SUMMARY.csv           # batch only: one row per success
+└── FAILED.csv            # batch only: one row per failure
 ```
 
-- `_summary.csv` — columns: `stem, formula, tae_Ha, Hf_298K_kJ, LFL_percent, UFL_percent, n_freqs, elapsed_s`. Appended across runs.
-- `_failed.csv` — columns: `stem, error_type, error, elapsed_s`. Appended across runs. Re-run a single offending molecule with `run.py <xyz>` to get a full traceback for debugging.
+- `SUMMARY.csv` — columns: `stem, formula, tae_Ha, Hf_298K_kJ, LFL_percent, UFL_percent, n_freqs, elapsed_s`. Appended across runs.
+- `FAILED.csv` — columns: `stem, error_type, error, elapsed_s`. Appended across runs. Re-run a single offending molecule with `run.py <xyz>` to get a full traceback for debugging.
 
 `stem` is the trailing `_`-separated piece of the XYZ filename (e.g. `C2H2_ca2cc2cc.xyz` → `ca2cc2cc`) — the unique-hash convention used by most isomer datasets. Per-molecule output files still use the full filename stem.
 

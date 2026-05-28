@@ -23,7 +23,7 @@ def _output_paths(cfg: ProjectConfig, case_name: str) -> dict[str, Path]:
         <output_dir>/pdf/<case>.pdf   (only when --plot)
         <output_dir>/json/<case>.json
 
-    Batch-level files (_summary.csv, _failed.csv) stay at the root so they're
+    Batch-level files (SUMMARY.csv, FAILED.csv) stay at the root so they're
     easy to find without descending into a subdir.
     """
     output_dir = cfg.output_dir
