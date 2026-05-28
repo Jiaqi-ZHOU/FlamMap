@@ -500,10 +500,7 @@ def resolve_hip_checkpoint(
     from huggingface_hub import hf_hub_download
 
     if not quiet:
-        print(
-            f"   Downloading {HIP_HF_FILENAME} from HuggingFace "
-            f"(override with --hip-checkpoint or HIP_CKPT)..."
-        )
+        print(f"   Downloading {HIP_HF_FILENAME} (override with --hip-checkpoint)...")
     with _silenced_fd2():
         cached = hf_hub_download(repo_id=HIP_HF_REPO, filename=HIP_HF_FILENAME)
     return Path(cached)
