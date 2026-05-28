@@ -105,6 +105,8 @@ uv run python run.py --input-list inputs.txt --jobs 12 --no-plot --skip-existing
 - `--skip-existing` — skip XYZ files whose output JSON already exists in `--output-dir`. Use this to resume after a crash.
 - `--no-plot` — recommended for big batches (~5 s/molecule saved).
 
+Template SLURM script: [job.sh.example](job.sh.example). Copy next to your data, edit `FLAMMAP_DIR` / `INPUT_LIST` / `OUTPUT_DIR` / `JOBS`, `sbatch`.
+
 Per-molecule outputs land in `--output-dir`, sorted into per-type subdirs and named by the **XYZ filename stem** (not the chemical formula — avoids collisions between isomers):
 
 ```
@@ -118,7 +120,7 @@ Per-molecule outputs land in `--output-dir`, sorted into per-type subdirs and na
 ```
 
 - `SUMMARY.csv` — columns: `stem, formula, tae_Ha, Hf_298K_kJ, LFL_percent, UFL_percent, n_freqs, elapsed_s`. Appended across runs.
-- `FAILED.csv` — columns: `stem, error_type, error, elapsed_s`. Appended across runs. Re-run a single offending molecule with `run.py <xyz>` to get a full traceback for debugging.
+- `FAILED.csv` — columns: `stem, formula, error_type, error, elapsed_s`. Appended across runs. Re-run a single offending molecule with `run.py <xyz>` to get a full traceback for debugging.
 
 `stem` is the trailing `_`-separated piece of the XYZ filename (e.g. `C2H2_ca2cc2cc.xyz` → `ca2cc2cc`) — the unique-hash convention used by most isomer datasets. Per-molecule output files still use the full filename stem.
 
@@ -134,7 +136,7 @@ Workflow:
 2. Submit per-molecule tasks: `hq submit --each-line xyzlist.txt -- python run.py {entry} --skip-existing --no-plot`.
 3. After HQ finishes, aggregate the per-molecule JSONs into the standard summary CSV: `python run.py --collect-summary xyzlist.txt --output-dir <dir>`.
 
-Template script: [job_hq.sh.example](job_hq.sh.example). Copy next to your data, edit `FLAMMAP_DIR` / `INPUT_LIST` / `OUTPUT_DIR` / `--nodes`, `sbatch`.
+Template script: [job_hq.sh.example](job_hq.sh.example). Copy next to your data, edit `FLAMMAP_DIR` / `INPUT_DIR` / `OUTPUT_DIR` / `CPUS_PER_TASK`, then run it on the login node (it submits tasks to a HQ server you've already started in a separate SLURM worker job).
 
 The `--skip-existing` flag works in single-molecule mode too — that's the HQ retry guard. Re-submitting a failed HQ job re-runs only the molecules whose JSONs don't exist yet. `--collect-summary` fills `elapsed_s` from each per-molecule JSON (recorded by `run_pipeline`); failed/missing molecules have no JSON, so their `elapsed_s` stays blank — check `hq job info` for those.
 
