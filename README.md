@@ -81,10 +81,13 @@ All frequencies must be positive. The count must match the geometry: `3N-5` for 
 - `--validate-only` — check inputs and exit
 - `--output-dir DIR` — override `outputs/`
 - `--no-plot` — skip the phase-diagram PDF
+- `--skip-existing` — exit early if `<output_dir>/json/<xyz-stem>.json` already exists; works in both single-molecule and batch mode (HyperQueue retry guard)
 - `--hip-device auto|cpu|cuda` — torch device for hip (default `auto`)
 - `--skala-device auto|cpu|cuda` — torch device for the skala SCF (default `auto`)
 
 `auto` reads the XYZ and picks `cuda` if the molecule has more than 10 heavy (non-H) atoms and CUDA is actually available; otherwise `cpu`. Small molecules go faster on CPU because of the ~10-15 s cupy/gpu4pyscf init cost. Override with `--skala-device cuda` etc. if you want a specific device.
+
+Per-molecule outputs use the same layout in single and batch modes (`yaml/<stem>.yaml`, `dat/<stem>.dat`, `pdf/<stem>.pdf`, `json/<stem>.json`) — see the tree in [Batch mode](#batch-mode-12k-molecules-in-2-h-on-a-96-core-box) below. `SUMMARY.csv` / `FAILED.csv` are batch-only.
 
 ### Batch mode (12k molecules in ~2 h on a 96-core box)
 
@@ -129,7 +132,7 @@ Workflow:
 
 Template script: [job_hq.sh.example](job_hq.sh.example). Copy next to your data, edit `FLAMMAP_DIR` / `INPUT_LIST` / `OUTPUT_DIR` / `--nodes`, `sbatch`.
 
-The `--skip-existing` flag works in single-molecule mode too — that's the HQ retry guard. Re-submitting a failed HQ job re-runs only the molecules whose JSONs don't exist yet. `--collect-summary` leaves `elapsed_s` blank (HQ tracks task timing separately, see `hq job info`).
+The `--skip-existing` flag works in single-molecule mode too — that's the HQ retry guard. Re-submitting a failed HQ job re-runs only the molecules whose JSONs don't exist yet. `--collect-summary` fills `elapsed_s` from each per-molecule JSON (recorded by `run_pipeline`); failed/missing molecules have no JSON, so their `elapsed_s` stays blank — check `hq job info` for those.
 
 ## Fixed workflow constants
 
