@@ -557,7 +557,6 @@ def compute_freqs(
     if negative.size > 0:
         formatted = ", ".join(f"{f:.2f}" for f in negative)
         raise ImaginaryModeError(
-            f"hip predicted {negative.size} imaginary mode(s) at [{formatted}] cm^-1 "
-            f"(geometry is not a minimum)"
+            f"hip predicted {negative.size} imaginary mode(s) at [{formatted}] cm^-1"
         )
     return [float(x) for x in vibrational]
