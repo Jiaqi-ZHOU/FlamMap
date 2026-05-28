@@ -9,6 +9,17 @@ from .thermo_constants import Na, R, c_cm, cal2J, h, ha2kJ, kB
 from .thermo_extract import count_atoms, parse_mol_struct
 
 
+class FrequencyCountMismatchError(ValueError):
+    """Vibrational frequency count doesn't match 3N-5 (linear) / 3N-6 (nonlinear).
+
+    Raised when the freqs list supplied to ``get_thermo_inputs`` doesn't have
+    exactly the expected number of non-zero vibrational modes for the input
+    geometry. Subclasses ValueError for backward compat with existing
+    ``except ValueError`` clauses; the dedicated class lets FAILED.csv
+    distinguish this from other validation errors at a glance.
+    """
+
+
 def calc_enthalpy_trans_rot(is_linear, temperature):
     h_trans = 5 / 2 * R * temperature
     h_rot = R * temperature if is_linear else (3 / 2) * R * temperature
@@ -76,10 +87,11 @@ def get_thermo_inputs(geometry_file, tae, *, freqs):
     freqs_cm = [float(freq) for freq in freqs]
     zpe_kcal = calc_zpe_from_freqs(freqs_cm)
     expected_nfreq = expected_vibrational_mode_count(natoms, is_linear)
-    assert len(freqs_cm) == expected_nfreq, (
-        f"Vibrational frequency count mismatch: got {len(freqs_cm)} non-zero modes, "
-        f"expected {expected_nfreq} for {'linear' if is_linear else 'nonlinear'} {natoms}-atom geometry."
-    )
+    if len(freqs_cm) != expected_nfreq:
+        raise FrequencyCountMismatchError(
+            f"got {len(freqs_cm)} non-zero modes, expected {expected_nfreq} "
+            f"for {'linear' if is_linear else 'nonlinear'} {natoms}-atom geometry"
+        )
     return freqs_cm, zpe_kcal, tae, is_linear, molecular_weight, sigma, inertia
 
 

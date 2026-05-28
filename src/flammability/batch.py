@@ -30,6 +30,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from .config import DEFAULT_OUTPUT_DIR, build_config, validate_config
+from .thermo_extract import extract_atoms, formula_from_atoms
 
 
 _SUMMARY_FIELDS = (
@@ -45,6 +46,7 @@ _SUMMARY_FIELDS = (
 
 _FAILED_FIELDS = (
     "stem",
+    "formula",
     "error_type",
     "error",
     "elapsed_s",
@@ -134,10 +136,20 @@ def _run_one(
             "status": "fail",
             "name": name,
             "stem": stem,
+            "formula": _safe_formula(xyz_path),
             "error_type": type(exc).__name__,
             "error": " ".join(str(exc).split()),  # collapse internal newlines/whitespace
             "elapsed_s": round(time.perf_counter() - start, 3),
         }
+
+
+def _safe_formula(xyz_path: Path) -> str:
+    """Best-effort formula extraction for fail rows. Returns "" if the xyz
+    itself is malformed (in which case formula was never knowable)."""
+    try:
+        return formula_from_atoms(extract_atoms(xyz_path))
+    except Exception:
+        return ""
 
 
 def run_batch(
@@ -393,6 +405,7 @@ def collect_summary(*, input_list: str, output_dir: str | None) -> None:
                 except (json.JSONDecodeError, KeyError, ValueError) as exc:
                     fail_writer.writerow({
                         "stem": stem,
+                        "formula": _safe_formula(p),
                         "error_type": type(exc).__name__,
                         "error": " ".join(str(exc).split()) or "malformed JSON",
                         "elapsed_s": "",
@@ -407,6 +420,7 @@ def collect_summary(*, input_list: str, output_dir: str | None) -> None:
                     elapsed = data.get("elapsed_s")
                     fail_writer.writerow({
                         "stem": stem,
+                        "formula": data.get("formula") or _safe_formula(p),
                         "error_type": data.get("error_type") or "UnknownError",
                         "error": data.get("error") or "(no error message)",
                         "elapsed_s": _fmt_csv("elapsed_s", float(elapsed)) if elapsed is not None else "",
@@ -416,6 +430,7 @@ def collect_summary(*, input_list: str, output_dir: str | None) -> None:
                 except (json.JSONDecodeError, ValueError) as exc:
                     fail_writer.writerow({
                         "stem": stem,
+                        "formula": _safe_formula(p),
                         "error_type": type(exc).__name__,
                         "error": f"malformed failed.json: {' '.join(str(exc).split())}",
                         "elapsed_s": "",
@@ -425,6 +440,7 @@ def collect_summary(*, input_list: str, output_dir: str | None) -> None:
 
             fail_writer.writerow({
                 "stem": stem,
+                "formula": _safe_formula(p),
                 "error_type": "MissingOutput",
                 "error": "no json/<stem>.{json,failed.json} — HQ never ran the task; check `hq job info`",
                 "elapsed_s": "",

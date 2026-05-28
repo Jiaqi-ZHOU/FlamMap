@@ -173,10 +173,20 @@ def main() -> None:
     try:
         run_pipeline(cfg, case_name_override=stem)
     except Exception as exc:
+        # Best-effort formula lookup so FAILED.csv has it. extract_atoms can
+        # itself raise on a malformed xyz; in that case formula is unknowable.
+        formula = ""
+        try:
+            from .thermo_extract import extract_atoms, formula_from_atoms
+
+            formula = formula_from_atoms(extract_atoms(cfg.xyz_geom))
+        except Exception:
+            pass
         failed_json.write_text(
             json.dumps(
                 {
                     "status": "fail",
+                    "formula": formula,
                     "error_type": type(exc).__name__,
                     "error": " ".join(str(exc).split()),
                     "traceback": traceback.format_exc(),
