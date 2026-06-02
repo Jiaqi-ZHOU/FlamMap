@@ -15,6 +15,7 @@ DEFAULT_PROD_YAML = REPO_ROOT / "data" / "cantera" / "gri30_noKinetics.yaml"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "outputs"
 DEFAULT_POLYS_TEMPS = [200, 1000, 3600]
 DEFAULT_NPOINTS = 101
+DEFAULT_THRESHOLD_TEMPERATURE = 1600  # CAFT cutoff (K) for LFL/UFL extraction
 
 
 @dataclass(slots=True)
@@ -29,6 +30,7 @@ class ProjectConfig:
     output_dir: Path
     polys_temps: list[int]
     npoints: int
+    threshold: float
     plot_map: bool
     hip_checkpoint: Path | None
     hip_device: str
@@ -57,6 +59,7 @@ def build_config(
     mode: str = "ml",
     case_yaml: str | Path | None = None,
     output_dir: str | Path | None = None,
+    threshold: float = DEFAULT_THRESHOLD_TEMPERATURE,
     plot_map: bool = True,
     hip_checkpoint: str | Path | None = None,
     hip_device: str = "auto",
@@ -78,6 +81,7 @@ def build_config(
         output_dir=_resolve_path(output_dir, DEFAULT_OUTPUT_DIR),
         polys_temps=list(DEFAULT_POLYS_TEMPS),
         npoints=DEFAULT_NPOINTS,
+        threshold=threshold,
         plot_map=plot_map,
         hip_checkpoint=(
             Path(hip_checkpoint).expanduser().resolve()
@@ -99,6 +103,9 @@ def validate_config(cfg: ProjectConfig) -> list[str]:
 
     if cfg.mode not in {"ab", "ml"}:
         errors.append(f"--mode must be 'ab' or 'ml', got {cfg.mode!r}.")
+
+    if cfg.threshold <= 0:
+        errors.append(f"--threshold must be a positive temperature in K, got {cfg.threshold!r}.")
 
     for label, value in (("skala-device", cfg.skala_device), ("hip-device", cfg.hip_device)):
         if value not in {"auto", "cpu", "cuda"}:

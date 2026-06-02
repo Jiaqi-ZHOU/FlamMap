@@ -7,7 +7,7 @@ The default workflow takes a single XYZ geometry, predicts the total atomization
 - a flammability phase-diagram PDF
 - a `.dat` file containing the CAFT grid
 - a YAML file containing the species thermochemistry
-- a JSON summary including TAE, frequencies, Hf, LFL, and UFL
+- a JSON summary including TAE, frequencies, Hf, the CAFT threshold, LFL, and UFL
 
 ## Installation
 
@@ -82,6 +82,7 @@ All frequencies must be positive. The count must match the geometry: `3N-5` for 
 
 - `--validate-only` — check inputs and exit
 - `--output-dir DIR` — override `outputs/`
+- `--threshold K` — CAFT cutoff temperature (K) for LFL/UFL extraction (default `1600`). Recorded per run in the JSON summary and the `threshold_K` column of `SUMMARY.csv`. Applies to single, `--input-list` batch, and HyperQueue modes alike.
 - `--no-plot` — skip the phase-diagram PDF
 - `--skip-existing` — exit early if `<output_dir>/json/<xyz-stem>.json` already exists; works in both single-molecule and batch mode (HyperQueue retry guard)
 - `--hip-device auto|cpu|cuda` — torch device for hip (default `auto`)
@@ -114,12 +115,12 @@ Per-molecule outputs land in `--output-dir`, sorted into per-type subdirs and na
 ├── yaml/<name>.yaml      # Cantera mechanism with the species added
 ├── dat/<name>.dat        # CAFT temperature grid
 ├── pdf/<name>.pdf        # phase-diagram plot (only when --plot)
-├── json/<name>.json      # summary (TAE, freqs, Hf, LFL, UFL, ...)
+├── json/<name>.json      # summary (TAE, freqs, Hf, threshold_K, LFL, UFL, ...)
 ├── SUMMARY.csv           # batch only: one row per success
 └── FAILED.csv            # batch only: one row per failure
 ```
 
-- `SUMMARY.csv` — columns: `stem, formula, tae_Ha, Hf_298K_kJ, LFL_percent, UFL_percent, n_freqs, elapsed_s`. Appended across runs.
+- `SUMMARY.csv` — columns: `stem, formula, tae_Ha, Hf_298K_kJ, threshold_K, LFL_percent, UFL_percent, n_freqs, elapsed_s`. Appended across runs; `threshold_K` records the CAFT cutoff each row's LFL/UFL was extracted at.
 - `FAILED.csv` — columns: `stem, formula, error_type, error, elapsed_s`. Appended across runs. Re-run a single offending molecule with `run.py <xyz>` to get a full traceback for debugging.
 
 `stem` is the trailing `_`-separated piece of the XYZ filename (e.g. `C2H2_ca2cc2cc.xyz` → `ca2cc2cc`) — the unique-hash convention used by most isomer datasets. Per-molecule output files still use the full filename stem.
@@ -138,12 +139,12 @@ Workflow:
 
 Template script: [job_hq.sh.example](job_hq.sh.example). Copy next to your data, edit `FLAMMAP_DIR` / `INPUT_DIR` / `OUTPUT_DIR` / `CPUS_PER_TASK`, then run it on the login node (it submits tasks to a HQ server you've already started in a separate SLURM worker job).
 
-The `--skip-existing` flag works in single-molecule mode too — that's the HQ retry guard. Re-submitting a failed HQ job re-runs only the molecules whose JSONs don't exist yet. `--collect-summary` fills `elapsed_s` from each per-molecule JSON (recorded by `run_pipeline`); failed/missing molecules have no JSON, so their `elapsed_s` stays blank — check `hq job info` for those.
+The `--skip-existing` flag works in single-molecule mode too — that's the HQ retry guard. Re-submitting a failed HQ job re-runs only the molecules whose JSONs don't exist yet. `--collect-summary` fills `elapsed_s` and `threshold_K` from each per-molecule JSON (recorded by `run_pipeline`); failed/missing molecules have no JSON, so their `elapsed_s` stays blank — check `hq job info` for those. JSONs written before `--threshold` existed have no `threshold_K` field, so that column is left blank for them (those runs all used `1600 K`).
 
 ## Fixed workflow constants
 
 - Elemental atomization enthalpies dH_f(X,g,298.15K), kJ/mol per atom, from CODATA Key Values for Thermodynamics (Cox, Wagman & Medvedev, 1989; redistributed by NIST WebBook): H = 217.998, C = 716.68, N = 472.68, O = 249.18. Stored in `data/reference/elem_enthalpies.json` with per-element citations.
-- CAFT flammability threshold: `1600 K`
+- CAFT flammability threshold: defaults to `1600 K`; override per run with `--threshold K`.
 
 ## Layout
 

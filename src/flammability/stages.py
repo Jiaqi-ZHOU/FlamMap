@@ -5,14 +5,15 @@ import time
 from pathlib import Path
 
 from .caft import compute_ternary_phase_diagram
-from .config import ProjectConfig
+from .config import DEFAULT_THRESHOLD_TEMPERATURE, ProjectConfig
 from .pd_analysis import compute_flammability_limits, plot_phase_diagram
 from .species import infer_case_name
 from .thermo_extract import extract_atoms, formula_from_atoms
 from .thermo_process import get_thermo
 from .yaml_generation import gen_custom_yaml
 
-THRESHOLD_TEMPERATURE = 1600
+# Backward-compatible alias; the live value comes from cfg.threshold per run.
+THRESHOLD_TEMPERATURE = DEFAULT_THRESHOLD_TEMPERATURE
 
 
 def _output_paths(cfg: ProjectConfig, case_name: str) -> dict[str, Path]:
@@ -143,10 +144,10 @@ def run_pipeline(
 
     if not quiet:
         print(
-            f"4. Extracting lower and upper flammability limits at {THRESHOLD_TEMPERATURE} K..."
+            f"4. Extracting lower and upper flammability limits at {cfg.threshold:g} K..."
         )
     lfl, ufl, _segments = compute_flammability_limits(
-        paths["dat"], THRESHOLD_TEMPERATURE
+        paths["dat"], cfg.threshold
     )
 
     diagram_pdf: str | None = str(paths["pdf"])
@@ -157,7 +158,7 @@ def run_pipeline(
             paths["dat"],
             paths["pdf"],
             formula=formula,
-            threshold_temperature=THRESHOLD_TEMPERATURE,
+            threshold_temperature=cfg.threshold,
             lfl_percent=lfl,
             ufl_percent=ufl,
         )
@@ -174,6 +175,7 @@ def run_pipeline(
         "case_name": case_name,
         "formula": formula,
         "Hf_298K_kJ": hf_kj,
+        "threshold_K": cfg.threshold,
         "LFL_percent": lfl,
         "UFL_percent": ufl,
         "diagram_pdf": diagram_pdf,
@@ -188,8 +190,8 @@ def run_pipeline(
         return summary
 
     print("Finished. Summary:")
-    print(f"LFL (CAFT threshold = {THRESHOLD_TEMPERATURE} K): {lfl:.3f}%")
-    print(f"UFL (CAFT threshold = {THRESHOLD_TEMPERATURE} K): {ufl:.3f}%")
+    print(f"LFL (CAFT threshold = {cfg.threshold:g} K): {lfl:.3f}%")
+    print(f"UFL (CAFT threshold = {cfg.threshold:g} K): {ufl:.3f}%")
     print(f"Generated YAML: {paths['yaml']}")
     print(f"CAFT DAT: {paths['dat']}")
     if cfg.plot_map:

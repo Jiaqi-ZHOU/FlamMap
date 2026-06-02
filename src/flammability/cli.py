@@ -6,7 +6,7 @@ import time
 import traceback
 from pathlib import Path
 
-from .config import build_config, validate_config
+from .config import DEFAULT_THRESHOLD_TEMPERATURE, build_config, validate_config
 from .stages import run_pipeline
 
 
@@ -61,6 +61,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Case-data YAML with 'tae' (Hartree) and 'freqs' (cm^-1); required for --mode ab.",
     )
     parser.add_argument("--output-dir", default=None, help="Override output directory.")
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=DEFAULT_THRESHOLD_TEMPERATURE,
+        help="CAFT threshold temperature in K for LFL/UFL extraction "
+        f"(default: {DEFAULT_THRESHOLD_TEMPERATURE}).",
+    )
     parser.add_argument("--no-plot", action="store_true", help="Skip writing the phase-diagram PDF.")
     parser.add_argument(
         "--hip-checkpoint",
@@ -118,6 +125,7 @@ def main() -> None:
             mode=args.mode,
             case_yaml=args.case_yaml,
             output_dir=args.output_dir,
+            threshold=args.threshold,
             plot_map=not args.no_plot,
             hip_checkpoint=args.hip_checkpoint,
             hip_device=args.hip_device,
@@ -133,6 +141,7 @@ def main() -> None:
         mode=args.mode,
         case_yaml=args.case_yaml,
         output_dir=args.output_dir,
+        threshold=args.threshold,
         plot_map=not args.no_plot,
         hip_checkpoint=args.hip_checkpoint,
         hip_device=args.hip_device,
