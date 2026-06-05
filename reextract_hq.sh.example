@@ -1,0 +1,63 @@
+#!/bin/bash
+# Re-extract LFL/UFL from already-computed CAFT .dat grids at a NEW threshold,
+# one HyperQueue task per .dat. The .dat grid does not depend on the threshold
+# — only the final LFL/UFL extraction does — so no quantum chemistry is re-run.
+#
+# Assumes you've already started the HQ server + worker(s) in your own SLURM
+# job (the worker calls `hq worker start`). This script just enqueues work
+# into that server from the login node.
+#
+# Workflow:
+#   sbatch my_hq_worker.sh           # start server + worker(s)
+#   ./reextract_hq.sh                # submit one task per .dat
+#   hq job wait last                 # block until all tasks finish
+#   ./reextract_hq.sh collect        # fold per-mol JSONs into REEXTRACT_<K>.csv
+#
+# Output: OUTPUT_DIR/REEXTRACT_<threshold>.csv (one row per molecule).
+# The original SUMMARY.csv and pipeline JSONs are left untouched, so you can
+# re-run this for several thresholds and diff the CSVs.
+#
+# NOTE: re-extraction is cheap (milliseconds per .dat). The HQ task startup
+# overhead (python import) dwarfs it, so HQ only pays off for very large
+# datasets across many nodes. For a few thousand .dat on one node, the
+# single-process reextract.sh.example is simpler and just as fast.
+
+set -euo pipefail
+
+# --- edit these ------------------------------------------------------------
+FLAMMAP_DIR=/users/jzhou/git/FlamMap
+OUTPUT_DIR=/users/jzhou/work/MSR1467/output_1.1   # holds dat/<name>.dat (and json/)
+THRESHOLD=1400                                     # new CAFT cutoff (K) to try
+CPUS_PER_TASK=1                                     # extraction is single-threaded
+# ---------------------------------------------------------------------------
+
+VENV_PYTHON="$FLAMMAP_DIR/.venv/bin/python"
+REEXTRACT_PY="$FLAMMAP_DIR/reextract.py"
+
+# --- collect mode (run after `hq job wait`) --------------------------------
+if [[ "${1:-}" == "collect" ]]; then
+    "$VENV_PYTHON" "$REEXTRACT_PY" \
+        --output-dir "$OUTPUT_DIR" --threshold "$THRESHOLD" --collect
+    exit 0
+fi
+# ---------------------------------------------------------------------------
+
+DAT_DIR="$OUTPUT_DIR/dat"
+HQ_LOG_DIR="$OUTPUT_DIR/reextract_hq_logs"
+mkdir -p "$HQ_LOG_DIR"
+
+# Route per-job stdout/stderr into HQ_LOG_DIR so cwd doesn't fill with job-NNNN/.
+for dat_file in "$DAT_DIR"/*.dat; do
+    hq submit --cpus "$CPUS_PER_TASK" \
+        --stdout "$HQ_LOG_DIR/job-%{JOB_ID}.stdout" \
+        --stderr "$HQ_LOG_DIR/job-%{JOB_ID}.stderr" \
+        -- "$VENV_PYTHON" "$REEXTRACT_PY" \
+            --output-dir "$OUTPUT_DIR" --threshold "$THRESHOLD" --dat "$dat_file"
+done
+
+echo
+echo "Submitted $(ls "$DAT_DIR"/*.dat | wc -l) tasks. Useful commands:"
+echo "  hq job list                  # see jobs"
+echo "  hq job info last             # detail for the batch just submitted"
+echo "  hq job wait last             # block until all tasks finish"
+echo "  $0 collect                   # build REEXTRACT_${THRESHOLD}.csv after wait"
