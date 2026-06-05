@@ -1,0 +1,26 @@
+#!/bin/bash
+# Re-extract LFL/UFL from already-computed CAFT .dat grids at a NEW threshold,
+# without re-running the expensive pipeline. The .dat grid does not depend on
+# the threshold — only the final LFL/UFL extraction does — so this just reads
+# OUTPUT_DIR/dat/*.dat and re-runs that one step.
+#
+# Copy next to your data and edit the knobs below:
+#   cp /path/to/FlamMap/reextract.sh.example /scratch/my_project/reextract.sh
+#   $EDITOR /scratch/my_project/reextract.sh
+#   ./reextract.sh
+#
+# Output: OUTPUT_DIR/REEXTRACT_<threshold>.csv (one row per molecule).
+# The original SUMMARY.csv and per-molecule JSONs are left untouched, so you
+# can re-run this for several thresholds and diff the CSVs.
+
+set -euo pipefail
+
+# --- edit these ------------------------------------------------------------
+FLAMMAP_DIR=/absolute/path/to/FlamMap        # FlamMap repo (where pyproject.toml + .venv live)
+OUTPUT_DIR=/absolute/path/to/outputs         # the dir that already holds dat/<name>.dat
+THRESHOLD=1400                               # new CAFT cutoff (K) to try
+# ---------------------------------------------------------------------------
+
+uv run --project "$FLAMMAP_DIR" python "$FLAMMAP_DIR/reextract.py" \
+    --output-dir "$OUTPUT_DIR" \
+    --threshold "$THRESHOLD"
