@@ -18,6 +18,7 @@ FLAMMAP_DIR=/users/jzhou/git/FlamMap
 INPUT_DIR=/users/jzhou/work/MSR1467/xyzfiles/C5
 OUTPUT_DIR=/users/jzhou/work/MSR1467/output_1.1
 CPUS_PER_TASK=4
+THRESHOLD=1600                    # CAFT cutoff (K) for LFL/UFL extraction
 # ---------------------------------------------------------------------------
 
 VENV_PYTHON="$FLAMMAP_DIR/.venv/bin/python"
@@ -46,7 +47,7 @@ for xyz_file in "$INPUT_DIR"/*.xyz; do
         --stdout "$HQ_LOG_DIR/job-%{JOB_ID}.stdout" \
         --stderr "$HQ_LOG_DIR/job-%{JOB_ID}.stderr" \
         -- "$VENV_PYTHON" "$RUN_PY" "$xyz_file" \
-            --output-dir "$OUTPUT_DIR" --no-plot --skip-existing
+            --output-dir "$OUTPUT_DIR" --threshold "$THRESHOLD" --no-plot --skip-existing
 done
 
 echo

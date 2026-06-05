@@ -134,10 +134,10 @@ For batches that need more than one node (e.g. 12k molecules across 12×128-core
 Workflow:
 
 1. Allocate nodes via SLURM, start HQ server on the head node, launch one HQ worker per node with `srun --overlap`.
-2. Submit per-molecule tasks: `hq submit --each-line xyzlist.txt -- python run.py {entry} --skip-existing --no-plot`.
+2. Submit per-molecule tasks: `hq submit --each-line xyzlist.txt -- python run.py {entry} --skip-existing --no-plot`. Add `--threshold K` to use a non-default CAFT cutoff — the value is recorded in each per-molecule JSON (`threshold_K`), so the summary in step 3 picks it up automatically.
 3. After HQ finishes, aggregate the per-molecule JSONs into the standard summary CSV: `python run.py --collect-summary xyzlist.txt --output-dir <dir>`.
 
-Template script: [job_hq.sh.example](job_hq.sh.example). Copy next to your data, edit `FLAMMAP_DIR` / `INPUT_DIR` / `OUTPUT_DIR` / `CPUS_PER_TASK`, then run it on the login node (it submits tasks to a HQ server you've already started in a separate SLURM worker job).
+Template script: [job_hq.sh.example](job_hq.sh.example). Copy next to your data, edit `FLAMMAP_DIR` / `INPUT_DIR` / `OUTPUT_DIR` / `CPUS_PER_TASK` (and `THRESHOLD` if you want a non-default cutoff), then run it on the login node (it submits tasks to a HQ server you've already started in a separate SLURM worker job).
 
 The `--skip-existing` flag works in single-molecule mode too — that's the HQ retry guard. Re-submitting a failed HQ job re-runs only the molecules whose JSONs don't exist yet. `--collect-summary` fills `elapsed_s` and `threshold_K` from each per-molecule JSON (recorded by `run_pipeline`); failed/missing molecules have no JSON, so their `elapsed_s` stays blank — check `hq job info` for those. JSONs written before `--threshold` existed have no `threshold_K` field, so that column is left blank for them (those runs all used `1600 K`).
 
