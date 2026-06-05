@@ -8,6 +8,14 @@ need to re-run the expensive pipeline (TAE / frequencies / YAML / CAFT grid).
 This script just reads each existing .dat and re-runs the extraction step at
 ``--threshold``.
 
+The output CSV uses the SAME columns as the pipeline's SUMMARY.csv:
+    stem, formula, tae_Ha, Hf_298K_kJ, threshold_K, LFL_percent, UFL_percent,
+    n_freqs, elapsed_s
+``LFL_percent`` / ``UFL_percent`` / ``threshold_K`` reflect the new threshold;
+the other columns (tae_Ha, Hf_298K_kJ, n_freqs, elapsed_s, formula) are read
+back from ``OUTPUT_DIR/json/<name>.json`` and left blank if that JSON is absent.
+The original SUMMARY.csv and pipeline JSONs are untouched.
+
 Three modes:
 
 1. Batch (default) — single process over the whole directory, writes one CSV:
@@ -22,10 +30,6 @@ Three modes:
 3. Collect (--collect) — fold the per-molecule JSONs from mode 2 into one CSV:
        python reextract.py --output-dir OUTPUT_DIR --threshold 1400 --collect
    -> OUTPUT_DIR/REEXTRACT_<threshold>.csv
-
-Each row is: name, stem, formula, threshold_K, LFL_percent, UFL_percent — where
-``formula`` is read back from ``OUTPUT_DIR/json/<name>.json`` when present
-(blank otherwise). The original SUMMARY.csv / pipeline JSONs are untouched.
 """
 
 from __future__ import annotations
@@ -33,7 +37,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import math
 import sys
 from pathlib import Path
 
@@ -44,7 +47,19 @@ if str(SRC_DIR) not in sys.path:
 
 from flammability.pd_analysis import compute_flammability_limits
 
-_FIELDS = ("name", "stem", "formula", "threshold_K", "LFL_percent", "UFL_percent")
+# Same columns and order as batch.py's _SUMMARY_FIELDS, so REEXTRACT_*.csv is a
+# drop-in for SUMMARY.csv in downstream tooling.
+_FIELDS = (
+    "stem",
+    "formula",
+    "tae_Ha",
+    "Hf_298K_kJ",
+    "threshold_K",
+    "LFL_percent",
+    "UFL_percent",
+    "n_freqs",
+    "elapsed_s",
+)
 
 
 def _find_dat_files(output_dir: Path) -> list[Path]:
@@ -57,32 +72,40 @@ def _find_dat_files(output_dir: Path) -> list[Path]:
     return sorted(output_dir.glob("*.dat"))
 
 
-def _formula_for(output_dir: Path, name: str) -> str:
-    """Read the chemical formula back from the per-molecule JSON, if present."""
+def _pipeline_meta(output_dir: Path, name: str) -> dict:
+    """Read the per-molecule pipeline JSON (tae, Hf, freqs, ...) if present."""
     json_path = output_dir / "json" / f"{name}.json"
     if not json_path.is_file():
-        return ""
+        return {}
     try:
         with open(json_path, encoding="utf-8") as handle:
-            return json.load(handle).get("formula", "") or ""
+            return json.load(handle)
     except (OSError, json.JSONDecodeError):
-        return ""
+        return {}
 
 
-def _fmt(value: float) -> str:
-    return "" if value is None or math.isnan(value) else f"{value:.6f}"
+def _opt_float(value) -> float | str:
+    """float(value), or '' for a missing field — keeps blank cells like SUMMARY."""
+    return "" if value is None else float(value)
 
 
 def _row_for(output_dir: Path, dat: Path, threshold: float) -> dict:
+    """Build a SUMMARY-shaped row: LFL/UFL from the .dat at the new threshold,
+    everything else carried over from the molecule's pipeline JSON."""
     name = dat.stem
+    meta = _pipeline_meta(output_dir, name)
     lfl, ufl, _segments = compute_flammability_limits(dat, threshold)
+    freqs = meta.get("freqs")
     return {
-        "name": name,
         "stem": name.split("_")[-1],
-        "formula": _formula_for(output_dir, name),
-        "threshold_K": f"{threshold:g}",
-        "LFL_percent": _fmt(lfl),
-        "UFL_percent": _fmt(ufl),
+        "formula": meta.get("formula", "") or "",
+        "tae_Ha": _opt_float(meta.get("tae")),
+        "Hf_298K_kJ": _opt_float(meta.get("Hf_298K_kJ")),
+        "threshold_K": float(threshold),
+        "LFL_percent": float(lfl),
+        "UFL_percent": float(ufl),
+        "n_freqs": len(freqs) if isinstance(freqs, list) else "",
+        "elapsed_s": _opt_float(meta.get("elapsed_s")),
     }
 
 
@@ -97,17 +120,17 @@ def run_single(output_dir: Path, threshold: float, dat: Path) -> None:
     row = _row_for(output_dir, dat, threshold)
     out_dir = _per_mol_dir(output_dir, threshold)
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_json = out_dir / f"{row['name']}.json"
+    out_json = out_dir / f"{dat.stem}.json"
     with open(out_json, "w", encoding="utf-8") as handle:
         json.dump(row, handle, indent=2)
     print(
-        f"{row['name']}: LFL={row['LFL_percent'] or 'nan'}%  "
-        f"UFL={row['UFL_percent'] or 'nan'}%  -> {out_json}"
+        f"{dat.stem}: LFL={row['LFL_percent']}  UFL={row['UFL_percent']}  "
+        f"-> {out_json}"
     )
 
 
 def run_collect(output_dir: Path, threshold: float) -> None:
-    """Fold per-molecule JSONs (from run_single) into one CSV."""
+    """Fold per-molecule JSONs (from run_single) into one SUMMARY-shaped CSV."""
     per_mol_dir = _per_mol_dir(output_dir, threshold)
     jsons = sorted(per_mol_dir.glob("*.json"))
     if not jsons:
@@ -137,8 +160,7 @@ def run_batch(output_dir: Path, threshold: float, out_csv: Path) -> None:
             row = _row_for(output_dir, dat, threshold)
             writer.writerow(row)
             print(
-                f"  {row['name']}: LFL={row['LFL_percent'] or 'nan'}%  "
-                f"UFL={row['UFL_percent'] or 'nan'}%"
+                f"  {dat.stem}: LFL={row['LFL_percent']}  UFL={row['UFL_percent']}"
             )
     print(f"Wrote {out_csv}")
 
