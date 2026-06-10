@@ -145,12 +145,11 @@ The `--skip-existing` flag works in single-molecule mode too — that's the HQ r
 
 - Elemental atomization enthalpies dH_f(X,g,298.15K), kJ/mol per atom, from CODATA Key Values for Thermodynamics (Cox, Wagman & Medvedev, 1989; redistributed by NIST WebBook): H = 217.998, C = 716.68, N = 472.68, O = 249.18. Stored in `data/reference/elem_enthalpies.json` with per-element citations.
 - CAFT flammability threshold: defaults to `1600 K`; override per run with `--threshold K`.
-- CAFT equilibrium: each grid point is a multiphase HP (constant enthalpy/pressure) Gibbs minimisation over the gri30 gas phase **plus a condensed-carbon (soot) phase** — Cantera's bundled `graphite.yaml` C(gr), added at runtime via `ct.Mixture`. The fuel YAMLs and the gas mechanism are not modified; soot only enters the equilibrium solve. Including it avoids overestimating the fuel-rich-side adiabatic flame temperature (the spurious rich-side spike a gas-only treatment produces). The solver uses a `vcs → gibbs` fallback for robustness on energetic fuels.
+- CAFT equilibrium: each grid point is a multiphase HP (constant enthalpy/pressure) Gibbs minimisation over the GRI-3.0 gas phase **plus a condensed-carbon (soot) phase**. The per-fuel YAML carries only the one species the pipeline computed; the products are not baked into it. Instead they are brought in at equilibrium time from Cantera's bundled mechanisms — the GRI-3.0 gas species (`gri30.yaml`) are merged with the fuel species into a single ideal-gas phase, and graphite C(gr) (`graphite.yaml`) is added as a separate condensed phase via `ct.Mixture`. Including soot avoids overestimating the fuel-rich-side adiabatic flame temperature (the spurious rich-side spike a gas-only treatment produces). If a fuel's species name collides with a GRI-3.0 species (e.g. a bare `CH4`), the fuel is suffixed `_fuel` and coexists with the GRI-3.0 species rather than replacing it. The solver uses a `vcs → gibbs` fallback for robustness on energetic fuels.
 
 ## Layout
 
 - `src/flammability/` — package source
 - `data/reference/elem_enthalpies.json` — vendored elemental enthalpy corrections
-- `data/cantera/` — vendored Cantera reference and product mechanisms
 - `examples/molecule.xyz` — sample CH4 geometry
 - `examples/molecule_data.yaml` — sample ab-mode case data for CH4

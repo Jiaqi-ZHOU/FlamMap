@@ -108,8 +108,6 @@ def run_pipeline(
         formula=formula,
         tae=tae,
         geometry_file=geometry_file,
-        ref_yaml=cfg.ref_yaml,
-        prod_yaml=cfg.prod_yaml,
         output_dir=paths["yaml"].parent,
         polys_temps=cfg.polys_temps,
         bond_enthalpy_json=cfg.bond_enthalpy_json,

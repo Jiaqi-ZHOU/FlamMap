@@ -8,6 +8,14 @@ from contextlib import redirect_stdout, redirect_stderr
 import cantera as ct
 import numpy as np
 
+# Products are NOT baked into the fuel YAML. The per-fuel YAML carries only the one
+# species we computed (its NASA7 thermo); the combustion products are brought in here,
+# at equilibrium time, from Cantera's bundled mechanisms. This keeps the generated YAML
+# a clean record of "the thermochemistry I produced" and puts every product (gas + soot)
+# on the same footing instead of splitting them between the YAML and this file.
+PRODUCTS_YAML = "gri30.yaml"     # Cantera-bundled GRI-3.0 gas-phase product species
+GRAPHITE_YAML = "graphite.yaml"  # Cantera-bundled condensed carbon (soot), NASA/McBride C(gr)
+
 
 def compute_ternary_phase_diagram(yaml_file: str | Path, output_dir: str | Path, n_points: int = 101):
     yaml_file = Path(yaml_file)
@@ -15,19 +23,42 @@ def compute_ternary_phase_diagram(yaml_file: str | Path, output_dir: str | Path,
     output_dir.mkdir(parents=True, exist_ok=True)
     fuel = yaml_file.stem
 
+    # Build the gas phase at runtime: GRI-3.0 product species + the one fuel species from
+    # this YAML, merged into a single homogeneous ideal-gas phase (they must share one
+    # phase so the multiphase solver gets the gas-gas mixing entropy right; the fuel is
+    # NOT a separate phase). On the rare name clash with a GRI-3.0 species (e.g. a bare
+    # "CH4" fuel), the fuel is suffixed "_fuel" and coexists with GRI-3.0's own species
+    # rather than replacing it. Normal `formula_stem` names never clash, so no dedup.
     try:
-        gas = ct.Solution(str(yaml_file))
+        products = ct.Species.list_from_file(PRODUCTS_YAML)
+        fuel_species = ct.Species.list_from_file(str(yaml_file))
     except Exception as exc:
-        return fuel, False, f"Failed to load YAML: {exc}"
-
-    # Condensed-phase carbon (soot) sink: a SEPARATE solid phase, not a gas-phase
-    # product. Equilibrium below is a multiphase Gibbs minimisation (gas + graphite),
-    # the standard treatment for fuel-rich equilibria; gas-only omits soot and
-    # overestimates rich-side T_ad. Fuel YAMLs are unchanged. Uses Cantera's bundled
-    # graphite.yaml (NASA/McBride C(gr), a reference element with Delta_fH298 = 0).
-    # To revert to gas-only: `git show d9c55ed^:src/flammability/caft.py`.
+        return fuel, False, f"Failed to load species: {exc}"
+    if len(fuel_species) != 1:
+        return fuel, False, (
+            f"Expected exactly one fuel species in {yaml_file.name}, found {len(fuel_species)}. "
+            "This YAML predates the runtime-merge format (it bundled the GRI-3.0 products); "
+            "regenerate it."
+        )
+    fuel_sp = fuel_species[0]
+    product_names = {sp.name for sp in products}
+    fuel_key = fuel_sp.name
+    if fuel_key in product_names:
+        fuel_key = f"{fuel_key}_fuel"
+        renamed = ct.Species(fuel_key, fuel_sp.composition)
+        renamed.thermo = fuel_sp.thermo
+        fuel_sp = renamed
     try:
-        carbon = ct.Solution("graphite.yaml")
+        gas = ct.Solution(thermo="ideal-gas", species=list(products) + [fuel_sp], transport_model="none")
+    except Exception as exc:
+        return fuel, False, f"Failed to build gas phase: {exc}"
+
+    # Condensed-phase carbon (soot) sink: a SEPARATE solid phase, not a gas-phase product.
+    # Equilibrium below is a multiphase Gibbs minimisation (gas + graphite), the standard
+    # treatment for fuel-rich equilibria; gas-only omits soot and overestimates rich-side
+    # T_ad. To revert to gas-only: `git show d9c55ed^:src/flammability/caft.py`.
+    try:
+        carbon = ct.Solution(GRAPHITE_YAML)
     except Exception as exc:
         return fuel, False, f"Failed to load graphite phase: {exc}"
 
@@ -52,7 +83,7 @@ def compute_ternary_phase_diagram(yaml_file: str | Path, output_dir: str | Path,
     n_fail = 0
     with open(os.devnull, "w") as _dn, redirect_stdout(_dn), redirect_stderr(_dn):
         for i, (n_o2, n_n2, n_fuel) in enumerate(zip(o2_valid, n2_valid, fuel_valid)):
-            comp = {"O2": float(n_o2), "N2": float(n_n2), fuel: float(n_fuel)}
+            comp = {"O2": float(n_o2), "N2": float(n_n2), fuel_key: float(n_fuel)}
             result = np.nan
             for solver in ("vcs", "gibbs"):
                 try:

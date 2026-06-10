@@ -47,8 +47,6 @@ def gen_custom_yaml(
     formula,
     tae,
     geometry_file,
-    ref_yaml,
-    prod_yaml,
     output_dir,
     polys_temps,
     bond_enthalpy_json,
@@ -78,32 +76,19 @@ def gen_custom_yaml(
         "note": "Custom W1-F12/B3LYP",
     }
 
-    with open(prod_yaml, "r", encoding="utf-8") as handle:
-        base_yaml = yaml.safe_load(handle)
-
-    filtered_species = []
-    for sp in base_yaml.get("species", []):
-        sp.pop("transport", None)
-        if sp.get("name") != species_id:
-            filtered_species.append(sp)
-    base_yaml["species"] = filtered_species
-
-    phase_species = ["NO" if s is False else s for s in base_yaml["phases"][0]["species"]]
-    phase_species = [name for name in phase_species if name != species_id]
-    base_yaml["phases"][0]["species"] = phase_species
-    base_yaml["phases"][0].pop("kinetics", None)
-    base_yaml["phases"][0].pop("transport", None)
-
-    for key in ["description", "generator", "input-files", "cantera-version", "units"]:
-        base_yaml.pop(key, None)
-    base_yaml["date"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    base_yaml["phases"][0]["name"] = f"GRI3.0Products+{species_id}"
-    base_yaml["phases"][0]["species"].append(species_id)
+    # Emit a "thin" YAML: only the species we computed, no combustion products. The
+    # products (GRI-3.0 gas + graphite soot) are merged in at equilibrium time by
+    # caft.compute_ternary_phase_diagram from Cantera's bundled mechanisms, so this file
+    # stays a clean record of the produced thermochemistry. A species-only document (no
+    # `phases` block) is valid input for ct.Species.list_from_file.
+    document = {
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "species": [entry],
+    }
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     outfile = output_dir / f"{species_id}.yaml"
     with open(outfile, "w", encoding="utf-8") as handle:
-        yaml.dump(base_yaml, handle, sort_keys=False, width=1000, default_flow_style=None)
-        yaml.dump([entry], handle, sort_keys=False, width=1000, default_flow_style=None)
+        yaml.dump(document, handle, sort_keys=False, width=1000, default_flow_style=None)
     return outfile

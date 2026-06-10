@@ -10,8 +10,6 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 DEFAULT_BOND_ENTHALPY_JSON = REPO_ROOT / "data" / "reference" / "elem_enthalpies.json"
-DEFAULT_REF_YAML = REPO_ROOT / "data" / "cantera" / "gri30.yaml"
-DEFAULT_PROD_YAML = REPO_ROOT / "data" / "cantera" / "gri30_noKinetics.yaml"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "outputs"
 DEFAULT_POLYS_TEMPS = [200, 1000, 3600]
 DEFAULT_NPOINTS = 101
@@ -25,8 +23,6 @@ class ProjectConfig:
     tae: float | None
     freqs: list[float] | None
     bond_enthalpy_json: Path
-    ref_yaml: Path
-    prod_yaml: Path
     output_dir: Path
     polys_temps: list[int]
     npoints: int
@@ -76,8 +72,6 @@ def build_config(
         tae=tae,
         freqs=freqs,
         bond_enthalpy_json=DEFAULT_BOND_ENTHALPY_JSON,
-        ref_yaml=DEFAULT_REF_YAML,
-        prod_yaml=DEFAULT_PROD_YAML,
         output_dir=_resolve_path(output_dir, DEFAULT_OUTPUT_DIR),
         polys_temps=list(DEFAULT_POLYS_TEMPS),
         npoints=DEFAULT_NPOINTS,
@@ -97,9 +91,8 @@ def validate_config(cfg: ProjectConfig) -> list[str]:
     errors: list[str] = []
     if not cfg.xyz_geom.exists():
         errors.append(f"Missing required path: {cfg.xyz_geom}")
-    for path in [cfg.bond_enthalpy_json, cfg.ref_yaml, cfg.prod_yaml]:
-        if not path.exists():
-            errors.append(f"Missing required path: {path}")
+    if not cfg.bond_enthalpy_json.exists():
+        errors.append(f"Missing required path: {cfg.bond_enthalpy_json}")
 
     if cfg.mode not in {"ab", "ml"}:
         errors.append(f"--mode must be 'ab' or 'ml', got {cfg.mode!r}.")
