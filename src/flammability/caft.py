@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import warnings
+from contextlib import redirect_stdout, redirect_stderr
 
 import cantera as ct
 import numpy as np
@@ -14,9 +16,20 @@ def compute_ternary_phase_diagram(yaml_file: str | Path, output_dir: str | Path,
     fuel = yaml_file.stem
 
     try:
-        gas = ct.ThermoPhase(str(yaml_file))
+        gas = ct.Solution(str(yaml_file))
     except Exception as exc:
         return fuel, False, f"Failed to load YAML: {exc}"
+
+    # Condensed-phase carbon (soot) sink: a SEPARATE solid phase, not a gas-phase
+    # product. Equilibrium below is a multiphase Gibbs minimisation (gas + graphite),
+    # the standard treatment for fuel-rich equilibria; gas-only omits soot and
+    # overestimates rich-side T_ad. Fuel YAMLs are unchanged. Uses Cantera's bundled
+    # graphite.yaml (NASA/McBride C(gr), a reference element with Delta_fH298 = 0).
+    # To revert to gas-only, restore caft.py.bak.
+    try:
+        carbon = ct.Solution("graphite.yaml")
+    except Exception as exc:
+        return fuel, False, f"Failed to load graphite phase: {exc}"
 
     o2_range = np.linspace(0.0, 1.0, n_points)
     n2_range = np.linspace(0.0, 1.0, n_points)
@@ -27,17 +40,36 @@ def compute_ternary_phase_diagram(yaml_file: str | Path, output_dir: str | Path,
     n2_valid = n2_grid[valid_mask]
     fuel_valid = fuel_grid[valid_mask]
 
+    # Multiphase HP equilibrium with a vcs -> gibbs fallback chain. vcs is the more
+    # robust multiphase solver (handles condensed-phase appearance/disappearance and
+    # converges on exotic/energetic fuels where gibbs fails); on the rare point where
+    # vcs fails, retry with gibbs; only then record NaN. Both solvers give identical T
+    # where they converge, so this is a robustness measure, not a physics change.
+    # Cantera's multiphase solvers emit non-fatal "FAILURE its=..." diagnostics on the
+    # output stream even when they converge; silence them around the grid sweep so a
+    # large batch does not flood logs. n_fail below is the real convergence signal.
     temperatures = np.full_like(o2_valid, np.nan)
-    for i, (n_o2, n_n2, n_fuel) in enumerate(zip(o2_valid, n2_valid, fuel_valid)):
-        try:
-            gas.X = {"O2": float(n_o2), "N2": float(n_n2), fuel: float(n_fuel)}
-            gas.TP = 300.0, ct.one_atm
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                gas.equilibrate("HP", rtol=1e-6, max_steps=5000, solver="auto")
-            temperatures[i] = gas.T
-        except Exception:
-            temperatures[i] = np.nan
+    n_fail = 0
+    with open(os.devnull, "w") as _dn, redirect_stdout(_dn), redirect_stderr(_dn):
+        for i, (n_o2, n_n2, n_fuel) in enumerate(zip(o2_valid, n2_valid, fuel_valid)):
+            comp = {"O2": float(n_o2), "N2": float(n_n2), fuel: float(n_fuel)}
+            result = np.nan
+            for solver in ("vcs", "gibbs"):
+                try:
+                    gas.TPX = 300.0, ct.one_atm, comp  # reset to clean initial state each attempt
+                    mix = ct.Mixture([(gas, 1.0), (carbon, 0.0)])
+                    mix.T = 300.0
+                    mix.P = ct.one_atm
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        mix.equilibrate("HP", solver=solver, max_steps=5000)
+                    result = mix.T
+                    break
+                except Exception:
+                    continue
+            if not np.isfinite(result):
+                n_fail += 1
+            temperatures[i] = result
 
     data = np.zeros((len(o2_valid), 4), dtype=float)
     data[:, 0] = o2_valid
@@ -47,7 +79,7 @@ def compute_ternary_phase_diagram(yaml_file: str | Path, output_dir: str | Path,
 
     out_path = output_dir / f"{fuel}.dat"
     np.savetxt(out_path, data, fmt="%.3f\t%.3f\t%.3f\t%.1f", header="O2\tN2\tFuel\tTemperature (K)")
-    return fuel, True, str(out_path)
+    return fuel, True, f"{out_path}  (fail_pts={n_fail}/{len(o2_valid)})"
 
 
 def generate_all_caft(yaml_dir: str | Path, output_dir: str | Path, *, n_points: int):
