@@ -145,6 +145,7 @@ The `--skip-existing` flag works in single-molecule mode too — that's the HQ r
 
 - Elemental atomization enthalpies dH_f(X,g,298.15K), kJ/mol per atom, from CODATA Key Values for Thermodynamics (Cox, Wagman & Medvedev, 1989; redistributed by NIST WebBook): H = 217.998, C = 716.68, N = 472.68, O = 249.18. Stored in `data/reference/elem_enthalpies.json` with per-element citations.
 - CAFT flammability threshold: defaults to `1600 K`; override per run with `--threshold K`.
+- CAFT equilibrium: each grid point is a multiphase HP (constant enthalpy/pressure) Gibbs minimisation over the gri30 gas phase **plus a condensed-carbon (soot) phase** — Cantera's bundled `graphite.yaml` C(gr), added at runtime via `ct.Mixture`. The fuel YAMLs and the gas mechanism are not modified; soot only enters the equilibrium solve. Including it avoids overestimating the fuel-rich-side adiabatic flame temperature (the spurious rich-side spike a gas-only treatment produces). The solver uses a `vcs → gibbs` fallback for robustness on energetic fuels.
 
 ## Layout
 

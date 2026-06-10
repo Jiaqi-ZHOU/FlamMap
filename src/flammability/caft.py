@@ -25,7 +25,7 @@ def compute_ternary_phase_diagram(yaml_file: str | Path, output_dir: str | Path,
     # the standard treatment for fuel-rich equilibria; gas-only omits soot and
     # overestimates rich-side T_ad. Fuel YAMLs are unchanged. Uses Cantera's bundled
     # graphite.yaml (NASA/McBride C(gr), a reference element with Delta_fH298 = 0).
-    # To revert to gas-only, restore caft.py.bak.
+    # To revert to gas-only: `git show d9c55ed^:src/flammability/caft.py`.
     try:
         carbon = ct.Solution("graphite.yaml")
     except Exception as exc:
