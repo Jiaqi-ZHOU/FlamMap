@@ -35,6 +35,9 @@ INPUT_LIST=/absolute/path/to/xyzlist.txt     # one XYZ path per line; relative p
                                              # are resolved against this file's dir
 OUTPUT_DIR=/absolute/path/to/outputs         # per-mol JSON + SUMMARY.csv + FAILED.csv
 JOBS=12                                      # parallel workers; 96 cores / 8 threads = 12
+LFL_THRESHOLD=1600                           # CAFT cutoff (K) for the LOWER limit
+UFL_THRESHOLD=1600                           # CAFT cutoff (K) for the UPPER limit; set lower
+                                             # (e.g. 1250) if calibrated differently. Equal = single cutoff.
 # ---------------------------------------------------------------------------
 
 # --- about GPU -------------------------------------------------------------
@@ -64,5 +67,7 @@ uv run --project "$FLAMMAP_DIR" python "$FLAMMAP_DIR/run.py" \
     --input-list "$INPUT_LIST" \
     --output-dir "$OUTPUT_DIR" \
     --jobs "$JOBS" \
+    --lfl-threshold "$LFL_THRESHOLD" \
+    --ufl-threshold "$UFL_THRESHOLD" \
     --no-plot \
     --skip-existing
