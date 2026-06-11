@@ -66,7 +66,22 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=DEFAULT_THRESHOLD_TEMPERATURE,
         help="CAFT threshold temperature in K for LFL/UFL extraction "
-        f"(default: {DEFAULT_THRESHOLD_TEMPERATURE}).",
+        f"(default: {DEFAULT_THRESHOLD_TEMPERATURE}). Sets both limits unless a "
+        "per-limit override below is given.",
+    )
+    parser.add_argument(
+        "--lfl-threshold",
+        type=float,
+        default=None,
+        help="CAFT threshold temperature in K for the LOWER limit only "
+        "(default: --threshold). Lets LFL and UFL use independently calibrated cutoffs.",
+    )
+    parser.add_argument(
+        "--ufl-threshold",
+        type=float,
+        default=None,
+        help="CAFT threshold temperature in K for the UPPER limit only "
+        "(default: --threshold).",
     )
     parser.add_argument("--no-plot", action="store_true", help="Skip writing the phase-diagram PDF.")
     parser.add_argument(
@@ -126,6 +141,8 @@ def main() -> None:
             case_yaml=args.case_yaml,
             output_dir=args.output_dir,
             threshold=args.threshold,
+            lfl_threshold=args.lfl_threshold,
+            ufl_threshold=args.ufl_threshold,
             plot_map=not args.no_plot,
             hip_checkpoint=args.hip_checkpoint,
             hip_device=args.hip_device,
@@ -142,6 +159,8 @@ def main() -> None:
         case_yaml=args.case_yaml,
         output_dir=args.output_dir,
         threshold=args.threshold,
+        lfl_threshold=args.lfl_threshold,
+        ufl_threshold=args.ufl_threshold,
         plot_map=not args.no_plot,
         hip_checkpoint=args.hip_checkpoint,
         hip_device=args.hip_device,

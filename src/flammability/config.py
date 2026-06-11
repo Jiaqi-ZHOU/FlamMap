@@ -26,7 +26,8 @@ class ProjectConfig:
     output_dir: Path
     polys_temps: list[int]
     npoints: int
-    threshold: float
+    lfl_threshold: float
+    ufl_threshold: float
     plot_map: bool
     hip_checkpoint: Path | None
     hip_device: str
@@ -56,6 +57,8 @@ def build_config(
     case_yaml: str | Path | None = None,
     output_dir: str | Path | None = None,
     threshold: float = DEFAULT_THRESHOLD_TEMPERATURE,
+    lfl_threshold: float | None = None,
+    ufl_threshold: float | None = None,
     plot_map: bool = True,
     hip_checkpoint: str | Path | None = None,
     hip_device: str = "auto",
@@ -66,6 +69,10 @@ def build_config(
     if case_yaml is not None:
         tae, freqs = _load_case_yaml(Path(case_yaml).expanduser().resolve())
 
+    # `threshold` is the shared shorthand; per-limit overrides fall back to it.
+    lfl_t = lfl_threshold if lfl_threshold is not None else threshold
+    ufl_t = ufl_threshold if ufl_threshold is not None else threshold
+
     return ProjectConfig(
         xyz_geom=Path(xyz_geom).expanduser().resolve(),
         mode=mode,
@@ -75,7 +82,8 @@ def build_config(
         output_dir=_resolve_path(output_dir, DEFAULT_OUTPUT_DIR),
         polys_temps=list(DEFAULT_POLYS_TEMPS),
         npoints=DEFAULT_NPOINTS,
-        threshold=threshold,
+        lfl_threshold=lfl_t,
+        ufl_threshold=ufl_t,
         plot_map=plot_map,
         hip_checkpoint=(
             Path(hip_checkpoint).expanduser().resolve()
@@ -97,8 +105,9 @@ def validate_config(cfg: ProjectConfig) -> list[str]:
     if cfg.mode not in {"ab", "ml"}:
         errors.append(f"--mode must be 'ab' or 'ml', got {cfg.mode!r}.")
 
-    if cfg.threshold <= 0:
-        errors.append(f"--threshold must be a positive temperature in K, got {cfg.threshold!r}.")
+    for label, value in (("lfl", cfg.lfl_threshold), ("ufl", cfg.ufl_threshold)):
+        if value <= 0:
+            errors.append(f"--{label}-threshold must be a positive temperature in K, got {value!r}.")
 
     for label, value in (("skala-device", cfg.skala_device), ("hip-device", cfg.hip_device)):
         if value not in {"auto", "cpu", "cuda"}:

@@ -314,12 +314,41 @@ def compute_flammability_limits(
     return lfl, ufl, segments
 
 
+def compute_split_flammability_limits(
+    dat_file: str | Path,
+    lfl_threshold_temperature: float,
+    ufl_threshold_temperature: float,
+) -> tuple[float, float, list[np.ndarray], list[np.ndarray]]:
+    """LFL and UFL read from CAFT contours at independent threshold temperatures.
+
+    The lower and upper limits are calibrated against different CAFT cutoffs (the
+    UFL criterion is a colder rich-side contour than the LFL one), so each limit is
+    taken from its own contour: the LFL from the contour at ``lfl_threshold_temperature``
+    and the UFL from the one at ``ufl_threshold_temperature``. When the two thresholds
+    are equal this collapses to a single contour evaluation, identical to
+    ``compute_flammability_limits``.
+
+    Returns ``(lfl, ufl, lfl_segments, ufl_segments)`` — the two contour segment lists
+    are returned so callers (e.g. plotting) can draw each limit's actual contour.
+    """
+    lfl, ufl_same, lfl_segments = compute_flammability_limits(
+        dat_file, lfl_threshold_temperature
+    )
+    if ufl_threshold_temperature == lfl_threshold_temperature:
+        return lfl, ufl_same, lfl_segments, lfl_segments
+    _lfl_other, ufl, ufl_segments = compute_flammability_limits(
+        dat_file, ufl_threshold_temperature
+    )
+    return lfl, ufl, lfl_segments, ufl_segments
+
+
 def plot_phase_diagram(
     dat_file: str | Path,
     pdf_file: str | Path,
     *,
     formula: str,
-    threshold_temperature: float,
+    lfl_threshold_temperature: float,
+    ufl_threshold_temperature: float,
     lfl_percent: float,
     ufl_percent: float,
 ) -> None:
@@ -327,7 +356,6 @@ def plot_phase_diagram(
     if len(temperatures) < 3:
         raise ValueError("Not enough finite CAFT grid points to plot the phase diagram.")
     triangulation = mtri.Triangulation(x, y)
-    segments = extract_contour_segments(dat_file, threshold_temperature)
     color_norm = mcolors.Normalize(vmin=0.0, vmax=3600.0, clip=True)
     cmap = plt.get_cmap("jet")
 
@@ -353,13 +381,25 @@ def plot_phase_diagram(
     )
     tick_values = np.round(np.linspace(0.0, 1.0, 11), 1)
     _draw_grid(ax, tick_values)
-    ax.tricontour(
-        triangulation,
-        temperatures,
-        levels=[threshold_temperature],
-        colors="black",
-        linewidths=1.0,
-    )
+    # One contour per limit's threshold. When they differ, the LFL contour is solid
+    # and the UFL contour dashed so both criteria are visible; when equal, a single
+    # solid contour (the original behaviour).
+    if ufl_threshold_temperature == lfl_threshold_temperature:
+        contour_levels = [(lfl_threshold_temperature, "solid")]
+    else:
+        contour_levels = [
+            (lfl_threshold_temperature, "solid"),
+            (ufl_threshold_temperature, "dashed"),
+        ]
+    for level, linestyle in contour_levels:
+        ax.tricontour(
+            triangulation,
+            temperatures,
+            levels=[level],
+            colors="black",
+            linewidths=1.0,
+            linestyles=linestyle,
+        )
 
     vertices = np.array(
         [
@@ -372,9 +412,6 @@ def plot_phase_diagram(
     ax.plot(vertices[:, 0], vertices[:, 1], color="black", linewidth=0.8)
 
     _draw_reference_lines(ax, formula)
-
-    for seg in segments:
-        ax.plot(seg[:, 0], seg[:, 1], color="black", linewidth=0.8)
 
     for value in [lfl_percent, ufl_percent]:
         if math.isnan(value):

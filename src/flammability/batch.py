@@ -38,7 +38,8 @@ _SUMMARY_FIELDS = (
     "formula",
     "tae_Ha",
     "Hf_298K_kJ",
-    "threshold_K",
+    "lfl_threshold_K",
+    "ufl_threshold_K",
     "LFL_percent",
     "UFL_percent",
     "n_freqs",
@@ -88,6 +89,8 @@ def _run_one(
     case_yaml: str | None,
     output_dir: str,
     threshold: float,
+    lfl_threshold: float | None,
+    ufl_threshold: float | None,
     plot_map: bool,
     hip_checkpoint: str | None,
     hip_device: str,
@@ -108,6 +111,8 @@ def _run_one(
             case_yaml=case_yaml,
             output_dir=output_dir,
             threshold=threshold,
+            lfl_threshold=lfl_threshold,
+            ufl_threshold=ufl_threshold,
             plot_map=plot_map,
             hip_checkpoint=hip_checkpoint,
             hip_device=hip_device,
@@ -127,7 +132,8 @@ def _run_one(
             "formula": summary["formula"],
             "tae_Ha": float(summary["tae"]),
             "Hf_298K_kJ": float(summary["Hf_298K_kJ"]),
-            "threshold_K": float(summary["threshold_K"]),
+            "lfl_threshold_K": float(summary["lfl_threshold_K"]),
+            "ufl_threshold_K": float(summary["ufl_threshold_K"]),
             "LFL_percent": float(summary["LFL_percent"]),
             "UFL_percent": float(summary["UFL_percent"]),
             "n_freqs": len(summary.get("freqs") or []),
@@ -163,6 +169,8 @@ def run_batch(
     case_yaml: str | None,
     output_dir: str | None,
     threshold: float,
+    lfl_threshold: float | None,
+    ufl_threshold: float | None,
     plot_map: bool,
     hip_checkpoint: str | None,
     hip_device: str,
@@ -230,6 +238,8 @@ def run_batch(
         case_yaml=case_yaml,
         output_dir=str(out_dir),
         threshold=threshold,
+        lfl_threshold=lfl_threshold,
+        ufl_threshold=ufl_threshold,
         plot_map=plot_map,
         hip_checkpoint=hip_checkpoint,
         hip_device=hip_device,
@@ -309,9 +319,9 @@ _CSV_FLOAT_PRECISION = {
 
 
 def _fmt_csv(k: str, v: object) -> object:
-    # threshold is a temperature, not a measured quantity — print it compactly
+    # thresholds are temperatures, not measured quantities — print them compactly
     # (1600, not 1600.0) and let non-integer thresholds keep their decimals.
-    if k == "threshold_K" and isinstance(v, (int, float)):
+    if k in ("lfl_threshold_K", "ufl_threshold_K") and isinstance(v, (int, float)):
         return f"{v:g}"
     p = _CSV_FLOAT_PRECISION.get(k)
     if p is not None and isinstance(v, float):
@@ -400,13 +410,17 @@ def collect_summary(*, input_list: str, output_dir: str | None) -> None:
                     with json_path.open(encoding="utf-8") as fh:
                         data = json.load(fh)
                     elapsed = data.get("elapsed_s")
-                    threshold = data.get("threshold_K")
+                    # New JSONs carry per-limit thresholds; older ones only had a
+                    # single threshold_K — fall back to it for both columns.
+                    lfl_thr = data.get("lfl_threshold_K", data.get("threshold_K"))
+                    ufl_thr = data.get("ufl_threshold_K", data.get("threshold_K"))
                     sum_writer.writerow({
                         "stem": stem,
                         "formula": data["formula"],
                         "tae_Ha": _fmt_csv("tae_Ha", float(data["tae"])),
                         "Hf_298K_kJ": _fmt_csv("Hf_298K_kJ", float(data["Hf_298K_kJ"])),
-                        "threshold_K": _fmt_csv("threshold_K", float(threshold)) if threshold is not None else "",
+                        "lfl_threshold_K": _fmt_csv("lfl_threshold_K", float(lfl_thr)) if lfl_thr is not None else "",
+                        "ufl_threshold_K": _fmt_csv("ufl_threshold_K", float(ufl_thr)) if ufl_thr is not None else "",
                         "LFL_percent": _fmt_csv("LFL_percent", float(data["LFL_percent"])),
                         "UFL_percent": _fmt_csv("UFL_percent", float(data["UFL_percent"])),
                         "n_freqs": len(data.get("freqs") or []),
