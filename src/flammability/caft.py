@@ -16,6 +16,11 @@ import numpy as np
 PRODUCTS_YAML = "gri30.yaml"     # Cantera-bundled GRI-3.0 gas-phase product species
 GRAPHITE_YAML = "graphite.yaml"  # Cantera-bundled condensed carbon (soot), NASA/McBride C(gr)
 
+# Toggle for the condensed-carbon (soot) sink. True = multiphase gas+graphite equilibrium
+# (default, correct for fuel-rich mixtures). Set False to TEMPORARILY drop soot and run a
+# gas-only HP equilibrium (overestimates rich-side T_ad — for comparison/debugging only).
+INCLUDE_SOOT = True
+
 
 def compute_ternary_phase_diagram(yaml_file: str | Path, output_dir: str | Path, n_points: int = 101):
     yaml_file = Path(yaml_file)
@@ -56,11 +61,13 @@ def compute_ternary_phase_diagram(yaml_file: str | Path, output_dir: str | Path,
     # Condensed-phase carbon (soot) sink: a SEPARATE solid phase, not a gas-phase product.
     # Equilibrium below is a multiphase Gibbs minimisation (gas + graphite), the standard
     # treatment for fuel-rich equilibria; gas-only omits soot and overestimates rich-side
-    # T_ad. To revert to gas-only: `git show d9c55ed^:src/flammability/caft.py`.
-    try:
-        carbon = ct.Solution(GRAPHITE_YAML)
-    except Exception as exc:
-        return fuel, False, f"Failed to load graphite phase: {exc}"
+    # T_ad. Disabled when INCLUDE_SOOT is False (gas-only run).
+    carbon = None
+    if INCLUDE_SOOT:
+        try:
+            carbon = ct.Solution(GRAPHITE_YAML)
+        except Exception as exc:
+            return fuel, False, f"Failed to load graphite phase: {exc}"
 
     o2_range = np.linspace(0.0, 1.0, n_points)
     n2_range = np.linspace(0.0, 1.0, n_points)
@@ -88,7 +95,8 @@ def compute_ternary_phase_diagram(yaml_file: str | Path, output_dir: str | Path,
             for solver in ("vcs", "gibbs"):
                 try:
                     gas.TPX = 300.0, ct.one_atm, comp  # reset to clean initial state each attempt
-                    mix = ct.Mixture([(gas, 1.0), (carbon, 0.0)])
+                    phases = [(gas, 1.0)] + ([(carbon, 0.0)] if INCLUDE_SOOT else [])
+                    mix = ct.Mixture(phases)
                     mix.T = 300.0
                     mix.P = ct.one_atm
                     with warnings.catch_warnings():
