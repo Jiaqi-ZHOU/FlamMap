@@ -40,13 +40,19 @@ where = ["src"]
 # Vendored hip config — see ml.py:_patch_hip_config_path for context.
 "flammability" = ["_hip_data/**/*.yaml"]
 
-# hip and skala are pinned to specific upstream commits so `uv sync` alone is
-# enough to bootstrap FlamMap — no sibling clones required. Bump `rev` to a
-# newer SHA to pick up upstream changes. For local development against a live
-# checkout, override per-user in `uv.toml` or temporarily swap these entries
-# to `{ path = "../hip", editable = true }` / `{ path = "../skala", editable = true }`.
+# hip and skala are pinned to specific commits so `uv sync` alone is enough to
+# bootstrap FlamMap — no sibling clones required. Bump `rev` to a newer SHA to
+# pick up changes. For local development against a live checkout, override
+# per-user in `uv.toml` or temporarily swap these entries to
+# `{ path = "../hip", editable = true }` / `{ path = "../skala", editable = true }`.
+#
+# hip points at a fork (Jiaqi-ZHOU/hip) of upstream BurgerAndreas/hip @ 06fedad
+# (HIP v3) carrying one extra commit: a relative rot_thresh for robust
+# linear-molecule detection (3N-5 vs 3N-6 DOF), which FlamMap needs for linear
+# CHON fuels. To track newer upstream hip, rebase that commit onto the new
+# upstream SHA in the fork and bump `rev` here.
 [tool.uv.sources]
-hip = { git = "https://github.com/BurgerAndreas/hip", rev = "06fedad91a558ed1589c79a13bc2b5dca7f733de" }
+hip = { git = "https://github.com/Jiaqi-ZHOU/hip", rev = "7ad2925af90fb7eff1cbd07f94c32d094652686f" }
 skala = { git = "https://github.com/microsoft/skala", rev = "7916d9fc108cb76daf20f893f82c3cd2c8fa0b1e" }
 torch = [{ index = "pytorch-cu121" }]
 torch-geometric = [{ index = "pytorch-cu121" }]

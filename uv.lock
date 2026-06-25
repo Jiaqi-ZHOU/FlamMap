@@ -726,7 +726,7 @@ requires-dist = [
     { name = "cupy-cuda12x" },
     { name = "dftd3" },
     { name = "gpu4pyscf-cuda12x", specifier = ">=1.5,<1.8" },
-    { name = "hip", extras = ["cuda121"], git = "https://github.com/BurgerAndreas/hip?rev=06fedad91a558ed1589c79a13bc2b5dca7f733de" },
+    { name = "hip", extras = ["cuda121"], git = "https://github.com/Jiaqi-ZHOU/hip?rev=7ad2925af90fb7eff1cbd07f94c32d094652686f" },
     { name = "huggingface-hub", specifier = ">=0.27" },
     { name = "matplotlib" },
     { name = "numpy" },
@@ -935,7 +935,7 @@ wheels = [
 [[package]]
 name = "hip"
 version = "0.1.0"
-source = { git = "https://github.com/BurgerAndreas/hip?rev=06fedad91a558ed1589c79a13bc2b5dca7f733de#06fedad91a558ed1589c79a13bc2b5dca7f733de" }
+source = { git = "https://github.com/Jiaqi-ZHOU/hip?rev=7ad2925af90fb7eff1cbd07f94c32d094652686f#7ad2925af90fb7eff1cbd07f94c32d094652686f" }
 dependencies = [
     { name = "ase" },
     { name = "datasets" },
