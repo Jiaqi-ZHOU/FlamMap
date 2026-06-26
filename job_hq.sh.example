@@ -41,6 +41,9 @@ mkdir -p "$OUTPUT_DIR" "$HQ_LOG_DIR"
 
 # Cap BLAS / OMP threads to the CPU budget HQ gives each task — otherwise
 # numpy/pyscf grab all cores on the node and tasks oversubscribe each other.
+# --caft-workers pins the CAFT grid to that same budget: HQ does NOT set per-task
+# CPU affinity, so the pipeline's auto-detection would otherwise see the WHOLE node
+# and spawn far too many grid processes. Pass it explicitly to be safe.
 # Route per-job stdout/stderr into HQ_LOG_DIR so cwd doesn't fill with job-NNNN/.
 for xyz_file in "$INPUT_DIR"/*.xyz; do
     hq submit --cpus "$CPUS_PER_TASK" \
@@ -52,6 +55,7 @@ for xyz_file in "$INPUT_DIR"/*.xyz; do
         -- "$VENV_PYTHON" "$RUN_PY" "$xyz_file" \
             --output-dir "$OUTPUT_DIR" \
             --lfl-threshold "$LFL_THRESHOLD" --ufl-threshold "$UFL_THRESHOLD" \
+            --caft-workers "$CPUS_PER_TASK" \
             --no-plot --skip-existing
 done
 

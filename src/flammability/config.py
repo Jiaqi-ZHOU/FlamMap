@@ -41,12 +41,42 @@ def _resolve_path(value: str | Path | None, fallback: Path) -> Path:
     return Path(value).expanduser().resolve()
 
 
+def _count_cpu_spec(spec: str) -> int:
+    """Count CPUs in a list/range spec like ``0,1,2,3`` or ``0-3,8-9``."""
+    total = 0
+    for tok in spec.replace(" ", ",").split(","):
+        tok = tok.strip()
+        if not tok:
+            continue
+        a, sep, b = tok.partition("-")
+        if sep and a.isdigit() and b.isdigit():
+            total += int(b) - int(a) + 1
+        else:
+            total += 1
+    return total
+
+
 def _resolve_caft_workers(value: int | None) -> int:
-    """Number of processes for the CAFT grid. None -> the cores actually allocated to
-    this process (under SLURM/HQ that is --cpus-per-task), which the per-molecule run is
-    otherwise leaving idle during the single-threaded grid sweep."""
+    """Number of processes for the CAFT grid sweep.
+
+    None -> the CPUs this task may actually use. ``os.sched_getaffinity`` is NOT reliable
+    under HyperQueue: HQ accounts CPUs per task but does not pin task affinity, so the
+    mask spans the whole node (e.g. 256) and would massively oversubscribe when many
+    tasks share it. Prefer HQ's per-task assignment (``HQ_CPUS``), then the OMP budget
+    the launcher set (the HQ template exports ``OMP_NUM_THREADS=$CPUS_PER_TASK``), and
+    only then fall back to the affinity mask / cpu count. ``SLURM_CPUS_PER_TASK`` is
+    deliberately NOT used: under HQ it is inherited from the worker's whole allocation,
+    not the individual task."""
     if value is not None:
         return max(1, int(value))
+    hq_cpus = os.environ.get("HQ_CPUS")
+    if hq_cpus:
+        n = _count_cpu_spec(hq_cpus)
+        if n > 0:
+            return n
+    omp = os.environ.get("OMP_NUM_THREADS")
+    if omp and omp.isdigit() and int(omp) > 0:
+        return int(omp)
     try:
         return max(1, len(os.sched_getaffinity(0)))
     except AttributeError:  # non-Linux fallback
