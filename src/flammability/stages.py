@@ -188,6 +188,7 @@ def run_pipeline(
         "diagram_pdf": diagram_pdf,
         "yaml_file": str(paths["yaml"]),
         "dat_file": str(paths["dat"]),
+        "caft_workers": cfg.caft_workers,
         "elapsed_s": round(time.perf_counter() - t0, 3),
     }
     with open(paths["json"], "w", encoding="utf-8") as handle:

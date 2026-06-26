@@ -43,6 +43,7 @@ _SUMMARY_FIELDS = (
     "LFL_percent",
     "UFL_percent",
     "n_freqs",
+    "caft_workers",
     "elapsed_s",
 )
 
@@ -142,6 +143,7 @@ def _run_one(
             "LFL_percent": float(summary["LFL_percent"]),
             "UFL_percent": float(summary["UFL_percent"]),
             "n_freqs": len(summary.get("freqs") or []),
+            "caft_workers": int(summary["caft_workers"]),
             "elapsed_s": round(elapsed, 3),
         }
     except Exception as exc:
@@ -431,6 +433,7 @@ def collect_summary(*, input_list: str, output_dir: str | None) -> None:
                         "LFL_percent": _fmt_csv("LFL_percent", float(data["LFL_percent"])),
                         "UFL_percent": _fmt_csv("UFL_percent", float(data["UFL_percent"])),
                         "n_freqs": len(data.get("freqs") or []),
+                        "caft_workers": data.get("caft_workers", ""),
                         "elapsed_s": _fmt_csv("elapsed_s", float(elapsed)) if elapsed is not None else "",
                     })
                     n_ok += 1

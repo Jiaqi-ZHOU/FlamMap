@@ -122,7 +122,7 @@ Per-molecule outputs land in `--output-dir`, sorted into per-type subdirs and na
 └── FAILED.csv            # batch only: one row per failure
 ```
 
-- `SUMMARY.csv` — columns: `stem, formula, tae_Ha, Hf_298K_kJ, lfl_threshold_K, ufl_threshold_K, LFL_percent, UFL_percent, n_freqs, elapsed_s`. Appended across runs; `lfl_threshold_K` / `ufl_threshold_K` record the CAFT cutoff each row's LFL / UFL was extracted at (equal unless `--lfl-threshold` / `--ufl-threshold` differ).
+- `SUMMARY.csv` — columns: `stem, formula, tae_Ha, Hf_298K_kJ, lfl_threshold_K, ufl_threshold_K, LFL_percent, UFL_percent, n_freqs, caft_workers, elapsed_s`. Appended across runs; `lfl_threshold_K` / `ufl_threshold_K` record the CAFT cutoff each row's LFL / UFL was extracted at (equal unless `--lfl-threshold` / `--ufl-threshold` differ), and `caft_workers` records how many processes swept that molecule's CAFT grid (the CPUs used).
 - `FAILED.csv` — columns: `stem, formula, error_type, error, elapsed_s`. Appended across runs. Re-run a single offending molecule with `run.py <xyz>` to get a full traceback for debugging.
 
 `stem` is the trailing `_`-separated piece of the XYZ filename (e.g. `C2H2_ca2cc2cc.xyz` → `ca2cc2cc`) — the unique-hash convention used by most isomer datasets. Per-molecule output files still use the full filename stem.

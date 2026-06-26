@@ -10,7 +10,7 @@ This script just reads each existing .dat and re-runs the extraction step at
 
 The output CSV uses the SAME columns as the pipeline's SUMMARY.csv:
     stem, formula, tae_Ha, Hf_298K_kJ, lfl_threshold_K, ufl_threshold_K,
-    LFL_percent, UFL_percent, n_freqs, elapsed_s
+    LFL_percent, UFL_percent, n_freqs, caft_workers, elapsed_s
 ``LFL_percent`` / ``UFL_percent`` / ``lfl_threshold_K`` / ``ufl_threshold_K``
 reflect the new threshold(s); the other columns (tae_Ha, Hf_298K_kJ, n_freqs,
 elapsed_s, formula) are read back from ``OUTPUT_DIR/json/<name>.json`` and left
@@ -60,6 +60,7 @@ _FIELDS = (
     "LFL_percent",
     "UFL_percent",
     "n_freqs",
+    "caft_workers",
     "elapsed_s",
 )
 
@@ -117,6 +118,9 @@ def _row_for(output_dir: Path, dat: Path, lfl_threshold: float, ufl_threshold: f
         "LFL_percent": float(lfl),
         "UFL_percent": float(ufl),
         "n_freqs": len(freqs) if isinstance(freqs, list) else "",
+        # carried over from the original pipeline run; re-extraction itself does not
+        # recompute the CAFT grid, so this reflects how the .dat was produced.
+        "caft_workers": meta.get("caft_workers", ""),
         "elapsed_s": _opt_float(meta.get("elapsed_s")),
     }
 
