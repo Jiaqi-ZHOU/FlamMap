@@ -26,6 +26,7 @@ class ProjectConfig:
     output_dir: Path
     polys_temps: list[int]
     npoints: int
+    caft_workers: int
     lfl_threshold: float
     ufl_threshold: float
     plot_map: bool
@@ -38,6 +39,18 @@ def _resolve_path(value: str | Path | None, fallback: Path) -> Path:
     if value is None:
         return fallback
     return Path(value).expanduser().resolve()
+
+
+def _resolve_caft_workers(value: int | None) -> int:
+    """Number of processes for the CAFT grid. None -> the cores actually allocated to
+    this process (under SLURM/HQ that is --cpus-per-task), which the per-molecule run is
+    otherwise leaving idle during the single-threaded grid sweep."""
+    if value is not None:
+        return max(1, int(value))
+    try:
+        return max(1, len(os.sched_getaffinity(0)))
+    except AttributeError:  # non-Linux fallback
+        return max(1, os.cpu_count() or 1)
 
 
 def _load_case_yaml(path: Path) -> tuple[float, list[float]]:
@@ -59,6 +72,7 @@ def build_config(
     threshold: float = DEFAULT_THRESHOLD_TEMPERATURE,
     lfl_threshold: float | None = None,
     ufl_threshold: float | None = None,
+    caft_workers: int | None = None,
     plot_map: bool = True,
     hip_checkpoint: str | Path | None = None,
     hip_device: str = "auto",
@@ -82,6 +96,7 @@ def build_config(
         output_dir=_resolve_path(output_dir, DEFAULT_OUTPUT_DIR),
         polys_temps=list(DEFAULT_POLYS_TEMPS),
         npoints=DEFAULT_NPOINTS,
+        caft_workers=_resolve_caft_workers(caft_workers),
         lfl_threshold=lfl_t,
         ufl_threshold=ufl_t,
         plot_map=plot_map,

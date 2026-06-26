@@ -136,6 +136,7 @@ def run_pipeline(
         paths["yaml"],
         paths["dat"].parent,
         n_points=cfg.npoints,
+        n_workers=cfg.caft_workers,
     )
     if not ok:
         raise RuntimeError(msg)

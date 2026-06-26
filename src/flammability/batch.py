@@ -91,6 +91,7 @@ def _run_one(
     threshold: float,
     lfl_threshold: float | None,
     ufl_threshold: float | None,
+    caft_workers: int | None,
     plot_map: bool,
     hip_checkpoint: str | None,
     hip_device: str,
@@ -113,6 +114,10 @@ def _run_one(
             threshold=threshold,
             lfl_threshold=lfl_threshold,
             ufl_threshold=ufl_threshold,
+            # Molecules already run in parallel across --jobs workers here, so default
+            # the CAFT grid to a single process to avoid jobs x caft_workers
+            # oversubscription. An explicit --caft-workers still wins.
+            caft_workers=caft_workers if caft_workers is not None else 1,
             plot_map=plot_map,
             hip_checkpoint=hip_checkpoint,
             hip_device=hip_device,
@@ -171,6 +176,7 @@ def run_batch(
     threshold: float,
     lfl_threshold: float | None,
     ufl_threshold: float | None,
+    caft_workers: int | None,
     plot_map: bool,
     hip_checkpoint: str | None,
     hip_device: str,
@@ -240,6 +246,7 @@ def run_batch(
         threshold=threshold,
         lfl_threshold=lfl_threshold,
         ufl_threshold=ufl_threshold,
+        caft_workers=caft_workers,
         plot_map=plot_map,
         hip_checkpoint=hip_checkpoint,
         hip_device=hip_device,

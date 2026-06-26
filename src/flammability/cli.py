@@ -83,6 +83,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="CAFT threshold temperature in K for the UPPER limit only "
         "(default: --threshold).",
     )
+    parser.add_argument(
+        "--caft-workers",
+        type=int,
+        default=None,
+        help="Processes for the CAFT grid sweep, whose points are independent. "
+        "Single-molecule mode defaults to all CPUs allocated to the task (HQ: "
+        "--cpus-per-task), using cores that are otherwise idle during the grid; "
+        "batch (--input-list) mode defaults to 1 since molecules already run in "
+        "parallel across --jobs.",
+    )
     parser.add_argument("--no-plot", action="store_true", help="Skip writing the phase-diagram PDF.")
     parser.add_argument(
         "--hip-checkpoint",
@@ -143,6 +153,7 @@ def main() -> None:
             threshold=args.threshold,
             lfl_threshold=args.lfl_threshold,
             ufl_threshold=args.ufl_threshold,
+            caft_workers=args.caft_workers,
             plot_map=not args.no_plot,
             hip_checkpoint=args.hip_checkpoint,
             hip_device=args.hip_device,
@@ -161,6 +172,7 @@ def main() -> None:
         threshold=args.threshold,
         lfl_threshold=args.lfl_threshold,
         ufl_threshold=args.ufl_threshold,
+        caft_workers=args.caft_workers,
         plot_map=not args.no_plot,
         hip_checkpoint=args.hip_checkpoint,
         hip_device=args.hip_device,
