@@ -18,10 +18,9 @@ FLAMMAP_DIR=/users/jzhou/git/FlamMap
 INPUT_DIR=/users/jzhou/work/MSR1467/xyzfiles/C5
 OUTPUT_DIR=/users/jzhou/work/MSR1467/output_1.1
 CPUS_PER_TASK=4
-LFL_THRESHOLD=1600               # CAFT cutoff (K) for the LOWER limit
-UFL_THRESHOLD=1600               # CAFT cutoff (K) for the UPPER limit; set lower than
-                                 # LFL if your UFL criterion is a colder rich-side
-                                 # contour (e.g. UFL_THRESHOLD=1250). Equal = single cutoff.
+LFL_THRESHOLD=1550               # CAFT cutoff (K) for the LOWER limit
+UFL_THRESHOLD=1250               # CAFT cutoff (K) for the UPPER limit; a colder rich-side
+                                 # contour than the LFL cutoff. Set equal for a single cutoff.
 # ---------------------------------------------------------------------------
 
 VENV_PYTHON="$FLAMMAP_DIR/.venv/bin/python"
