@@ -15,7 +15,7 @@ Usage:
   # interactive on a debug node (uses all allocated cores by default):
   python threshold_sweep.py --output-dir <DIR> --out sweep.csv
   # explicit ranges / worker count:
-  python threshold_sweep.py --output-dir <DIR> --lo 1100 --hi 1800 --step 50 --jobs 128
+  python threshold_sweep.py --output-dir <DIR> --lo 1000 --hi 1800 --step 50 --jobs 128
 """
 from __future__ import annotations
 
@@ -95,7 +95,7 @@ def main() -> None:
     p.add_argument("--output-dir", required=True, help="Pipeline output dir with dat/<name>.dat (and json/).")
     p.add_argument("--out", default=None,
                    help="Output CSV path (default: threshold_sweep_<lo>-<hi>_step<step>.csv).")
-    p.add_argument("--lo", type=float, default=1100.0, help="Lowest threshold in K (default 1100).")
+    p.add_argument("--lo", type=float, default=1000.0, help="Lowest threshold in K (default 1000).")
     p.add_argument("--hi", type=float, default=1800.0, help="Highest threshold in K (default 1800).")
     p.add_argument("--step", type=float, default=50.0, help="Threshold step in K (default 50).")
     p.add_argument("--jobs", type=int, default=None, help="Worker processes (default: all allocated cores).")
