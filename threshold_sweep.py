@@ -93,7 +93,8 @@ def _default_jobs() -> int:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--output-dir", required=True, help="Pipeline output dir with dat/<name>.dat (and json/).")
-    p.add_argument("--out", default="threshold_sweep.csv", help="Output CSV path (default: threshold_sweep.csv).")
+    p.add_argument("--out", default=None,
+                   help="Output CSV path (default: threshold_sweep_<lo>-<hi>_step<step>.csv).")
     p.add_argument("--lo", type=float, default=1100.0, help="Lowest threshold in K (default 1100).")
     p.add_argument("--hi", type=float, default=1800.0, help="Highest threshold in K (default 1800).")
     p.add_argument("--step", type=float, default=50.0, help="Threshold step in K (default 50).")
@@ -107,15 +108,21 @@ def main() -> None:
     n_steps = int(round((args.hi - args.lo) / args.step))
     thresholds = [args.lo + i * args.step for i in range(n_steps + 1)]
 
+    # Default output name encodes the range so different sweeps don't overwrite.
+    out_path = Path(
+        args.out
+        if args.out is not None
+        else f"threshold_sweep_{args.lo:g}-{args.hi:g}_step{args.step:g}.csv"
+    )
+
     dats = _find_dats(output_dir)
     if not dats:
         raise SystemExit(f"No .dat files found in {output_dir} (or {output_dir}/dat).")
     jobs = max(1, args.jobs or _default_jobs())
     print(f"{len(dats)} molecules x {len(thresholds)} thresholds "
           f"({thresholds[0]:g}-{thresholds[-1]:g} K step {args.step:g}) "
-          f"on {jobs} worker(s) -> {args.out}", flush=True)
+          f"on {jobs} worker(s) -> {out_path}", flush=True)
 
-    out_path = Path(args.out)
     dat_strs = [str(d) for d in dats]
     with out_path.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
