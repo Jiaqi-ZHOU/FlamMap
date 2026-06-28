@@ -6,7 +6,7 @@ import time
 import traceback
 from pathlib import Path
 
-from .config import DEFAULT_THRESHOLD_TEMPERATURE, build_config, validate_config
+from .config import DEFAULT_LFL_THRESHOLD, DEFAULT_UFL_THRESHOLD, build_config, validate_config
 from .stages import run_pipeline
 
 
@@ -64,24 +64,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--threshold",
         type=float,
-        default=DEFAULT_THRESHOLD_TEMPERATURE,
-        help="CAFT threshold temperature in K for LFL/UFL extraction "
-        f"(default: {DEFAULT_THRESHOLD_TEMPERATURE}). Sets both limits unless a "
-        "per-limit override below is given.",
+        default=None,
+        help="Shorthand to set BOTH limits to the same CAFT cutoff (K). If unset, the "
+        f"lower and upper limits use their calibrated defaults ({DEFAULT_LFL_THRESHOLD} "
+        f"and {DEFAULT_UFL_THRESHOLD} K); the per-limit flags below override either.",
     )
     parser.add_argument(
         "--lfl-threshold",
         type=float,
         default=None,
         help="CAFT threshold temperature in K for the LOWER limit only "
-        "(default: --threshold). Lets LFL and UFL use independently calibrated cutoffs.",
+        f"(default: {DEFAULT_LFL_THRESHOLD}). Lets LFL and UFL use independently calibrated cutoffs.",
     )
     parser.add_argument(
         "--ufl-threshold",
         type=float,
         default=None,
         help="CAFT threshold temperature in K for the UPPER limit only "
-        "(default: --threshold).",
+        f"(default: {DEFAULT_UFL_THRESHOLD}).",
     )
     parser.add_argument(
         "--caft-workers",

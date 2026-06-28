@@ -13,7 +13,10 @@ DEFAULT_BOND_ENTHALPY_JSON = REPO_ROOT / "data" / "reference" / "elem_enthalpies
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "outputs"
 DEFAULT_POLYS_TEMPS = [200, 1000, 3600]
 DEFAULT_NPOINTS = 101
-DEFAULT_THRESHOLD_TEMPERATURE = 1600  # CAFT cutoff (K) for LFL/UFL extraction
+DEFAULT_THRESHOLD_TEMPERATURE = 1600  # legacy shared cutoff (K); the --threshold shorthand
+# Per-limit default CAFT cutoffs (K), calibrated separately for the lower and upper limit.
+DEFAULT_LFL_THRESHOLD = 1550
+DEFAULT_UFL_THRESHOLD = 1250
 
 
 @dataclass(slots=True)
@@ -99,7 +102,7 @@ def build_config(
     mode: str = "ml",
     case_yaml: str | Path | None = None,
     output_dir: str | Path | None = None,
-    threshold: float = DEFAULT_THRESHOLD_TEMPERATURE,
+    threshold: float | None = None,
     lfl_threshold: float | None = None,
     ufl_threshold: float | None = None,
     caft_workers: int | None = None,
@@ -113,9 +116,14 @@ def build_config(
     if case_yaml is not None:
         tae, freqs = _load_case_yaml(Path(case_yaml).expanduser().resolve())
 
-    # `threshold` is the shared shorthand; per-limit overrides fall back to it.
-    lfl_t = lfl_threshold if lfl_threshold is not None else threshold
-    ufl_t = ufl_threshold if ufl_threshold is not None else threshold
+    # Resolution order per limit: explicit --lfl/--ufl-threshold > shared --threshold
+    # shorthand > the per-limit calibrated default.
+    lfl_t = lfl_threshold if lfl_threshold is not None else (
+        threshold if threshold is not None else DEFAULT_LFL_THRESHOLD
+    )
+    ufl_t = ufl_threshold if ufl_threshold is not None else (
+        threshold if threshold is not None else DEFAULT_UFL_THRESHOLD
+    )
 
     return ProjectConfig(
         xyz_geom=Path(xyz_geom).expanduser().resolve(),
