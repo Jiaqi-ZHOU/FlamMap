@@ -74,7 +74,15 @@ def compute_inertia_matrix(atoms, com):
 
 def get_inertia_and_linearity(inertia_matrix):
     inertia_values = np.sort(np.linalg.eigvalsh(inertia_matrix))
-    is_linear = np.isclose(inertia_values[0], 0, atol=1e-6)
+    # Linear molecules have a vanishing smallest principal moment of inertia (all atoms
+    # on one axis), while the other two are large and equal. Test the smallest RELATIVE
+    # to the largest, not against an absolute atol: coordinate noise (~1e-4 A) inflates
+    # the smallest moment to ~1e-6-1e-5 amu*A^2, which an absolute 1e-6 cutoff misreads
+    # as non-linear -- then the 3N-5 vibration count disagrees with this linearity and
+    # the pipeline raises FrequencyCountMismatchError. The relative test mirrors the
+    # rot_thresh fix in hip's frequency analysis so the two determinations agree.
+    largest = inertia_values[2]
+    is_linear = bool(largest > 0 and inertia_values[0] < 1e-3 * largest)
     inertia = float(inertia_values[2]) if is_linear else inertia_values.tolist()
     return inertia, is_linear
 
