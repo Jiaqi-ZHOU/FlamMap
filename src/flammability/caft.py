@@ -18,10 +18,10 @@ import numpy as np
 PRODUCTS_YAML = "gri30.yaml"     # Cantera-bundled GRI-3.0 gas-phase product species
 GRAPHITE_YAML = "graphite.yaml"  # Cantera-bundled condensed carbon (soot), NASA/McBride C(gr)
 
-# Toggle for the condensed-carbon (soot) sink. True = multiphase gas+graphite equilibrium
-# (default, correct for fuel-rich mixtures). Set False to TEMPORARILY drop soot and run a
-# gas-only HP equilibrium (overestimates rich-side T_ad — for comparison/debugging only).
-INCLUDE_SOOT = True
+# Toggle for the condensed-carbon (soot) sink. False (default) = gas-only HP equilibrium.
+# True = multiphase gas+graphite equilibrium, which adds the condensed-carbon sink that
+# lowers rich-side T_ad but is much slower to converge on some fuels.
+INCLUDE_SOOT = False
 
 
 def _build_gas_and_carbon(yaml_file, include_soot):
