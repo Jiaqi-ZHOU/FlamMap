@@ -183,7 +183,7 @@ def _draw_axis_ticks(ax, tick_values: np.ndarray) -> None:
         )
 
 
-def _draw_reference_lines(ax, formula: str) -> None:
+def _draw_reference_lines(ax, formula: str, stoich_label_offset=(-0.03, 0.04)) -> None:
     air_point = np.array(bary_to_cart(*AIR_BARY))
     fuel_point = np.array(bary_to_cart(*FUEL_BARY))
     ax.plot(
@@ -202,7 +202,7 @@ def _draw_reference_lines(ax, formula: str) -> None:
         air_label[1],
         "Air line",
         color="red",
-        fontsize=9,
+        fontsize=11,
         rotation=air_angle,
         rotation_mode="anchor",
         ha="left",
@@ -225,13 +225,13 @@ def _draw_reference_lines(ax, formula: str) -> None:
     stoich_angle = math.degrees(math.atan2(stoich_vector[1], stoich_vector[0]))
     if stoich_angle > 90.0 or stoich_angle < -90.0:
         stoich_angle += 180.0
-    label_point = 0.5 * x0 + 0.5 * x1 + np.array([-0.03, 0.04])
+    label_point = 0.5 * x0 + 0.5 * x1 + np.array(stoich_label_offset)
     ax.text(
         label_point[0],
         label_point[1],
         "Stoichiometric line",
         color="blue",
-        fontsize=9,
+        fontsize=11,
         rotation=stoich_angle,
         rotation_mode="anchor",
         ha="right",
@@ -351,6 +351,7 @@ def plot_phase_diagram(
     ufl_threshold_temperature: float,
     lfl_percent: float,
     ufl_percent: float,
+    stoich_label_offset=(-0.03, 0.04),
 ) -> None:
     x, y, temperatures = _load_finite_dat_points(dat_file)
     if len(temperatures) < 3:
@@ -411,7 +412,7 @@ def plot_phase_diagram(
     )
     ax.plot(vertices[:, 0], vertices[:, 1], color="black", linewidth=0.8)
 
-    _draw_reference_lines(ax, formula)
+    _draw_reference_lines(ax, formula, stoich_label_offset=stoich_label_offset)
 
     for value in [lfl_percent, ufl_percent]:
         if math.isnan(value):
@@ -428,14 +429,14 @@ def plot_phase_diagram(
         r"$\mathrm{O}_{2}$",
         ha="center",
         va="top",
-        fontsize=10,
+        fontsize=12,
     )
     ax.text(
         *bary_to_cart(-0.15, 0.575, 0.575),
         r"$\mathrm{N}_{2}$",
         ha="left",
         va="center",
-        fontsize=10,
+        fontsize=12,
         rotation=-60,
         rotation_mode="anchor",
     )
@@ -444,7 +445,7 @@ def plot_phase_diagram(
         _formula_to_mathtext(formula),
         ha="right",
         va="center",
-        fontsize=11,
+        fontsize=13,
         rotation=60,
         rotation_mode="anchor",
     )
